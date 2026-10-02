@@ -4,11 +4,11 @@ import { and, asc, eq, inArray } from "drizzle-orm";
 import { abrirEventoAccion, cargarViaje } from "@/app/panel/acciones";
 import { ElegirStock } from "@/app/panel/elegir-stock";
 import { db } from "@/db/conexion";
-import { eventos, ubicaciones, ventas } from "@/db/esquema";
-import { ESTADO_EVENTO, momento, pesos, rangoDeFechas } from "@/componentes/formato";
+import { eventos, ubicaciones } from "@/db/esquema";
+import { ESTADO_EVENTO, MEDIO_DE_PAGO, momento, pesos, rangoDeFechas } from "@/componentes/formato";
 import { Aviso, Boton, Selector, Vacio } from "@/componentes/primitivos";
 import { asientosDelCierre } from "@/servidor/cierre";
-import { resumenDeEventos } from "@/servidor/eventos";
+import { resumenDeEventos, ventasDelEvento } from "@/servidor/eventos";
 import { stockConNombres } from "@/servidor/transferencias";
 
 export default async function DetalleDeEvento({
@@ -38,11 +38,8 @@ export default async function DetalleDeEvento({
       : (await stockConNombres(origen.id))
           .filter((s) => s.cantidad > 0)
           .map(({ cantidad, ...resto }) => ({ ...resto, disponible: cantidad }));
-  const paraRevisar = await db()
-    .select()
-    .from(ventas)
-    .where(and(eq(ventas.eventoId, evento.id), eq(ventas.paraRevisar, true)))
-    .orderBy(asc(ventas.recibidoAt));
+  const listaDeVentas = await ventasDelEvento(evento.id);
+  const paraRevisar = listaDeVentas.filter((v) => v.paraRevisar);
   const totalEnEvento = enEvento.reduce((suma, s) => suma + s.cantidad, 0);
   const asientos = evento.estado === "cerrado" ? await asientosDelCierre(evento.id) : [];
 
@@ -189,6 +186,49 @@ export default async function DetalleDeEvento({
                     <td className="p-2">{s.color}</td>
                     <td className="p-2 font-mono">{s.sku}</td>
                     <td className={`p-2 text-right tabular-nums ${s.cantidad < 0 ? "font-black text-red-700" : ""}`}>{s.cantidad}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-2xl font-bold">Ventas ({listaDeVentas.length})</h2>
+        <p className="text-sm">
+          Ordenadas por la hora en que llegaron al servidor. La hora del celular se muestra al lado, pero no ordena: los relojes pueden
+          estar corridos.
+        </p>
+        {listaDeVentas.length === 0 ? (
+          <Vacio titulo="Todavía no llegó ninguna venta">Las ventas aparecen acá cuando un celular del evento las sube.</Vacio>
+        ) : (
+          <div className="overflow-x-auto rounded-lg border-2 border-black">
+            <table className="w-full border-collapse text-left text-sm">
+              <thead className="bg-neutral-100">
+                <tr>
+                  <th className="p-2">Llegó</th>
+                  <th className="p-2">Hora del celular</th>
+                  <th className="p-2">Celular</th>
+                  <th className="p-2">Detalle</th>
+                  <th className="p-2">Medio</th>
+                  <th className="p-2 text-right">Cobrado</th>
+                  <th className="p-2 text-right">Catálogo</th>
+                </tr>
+              </thead>
+              <tbody>
+                {listaDeVentas.map((v) => (
+                  <tr key={v.id} className={`border-t border-neutral-300 align-top ${v.paraRevisar ? "bg-amber-50" : ""}`}>
+                    <td className="p-2 whitespace-nowrap">{momento(v.recibidoAt)}</td>
+                    <td className="p-2 whitespace-nowrap text-neutral-600">{momento(v.vendidoAt)}</td>
+                    <td className="p-2">{v.celular}</td>
+                    <td className="p-2">
+                      {v.detalle}
+                      {v.paraRevisar && <span className="mt-1 block font-bold text-amber-900">Para revisar: {v.motivoRevision}</span>}
+                    </td>
+                    <td className="p-2">{MEDIO_DE_PAGO[v.medioPago]}</td>
+                    <td className="p-2 text-right font-bold tabular-nums">{pesos(v.total)}</td>
+                    <td className={`p-2 text-right tabular-nums ${v.total === v.totalCatalogo ? "text-neutral-500" : ""}`}>{pesos(v.totalCatalogo)}</td>
                   </tr>
                 ))}
               </tbody>

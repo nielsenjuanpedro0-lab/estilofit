@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
 import { stockActual, ventas } from "@/db/esquema";
 import { revocarDispositivo } from "@/servidor/dispositivos";
+import { ventasDelEvento } from "@/servidor/eventos";
 import { uuidDeRenglon } from "@/servidor/sincronizacion";
 import { UNIDADES_POR_VARIANTE, prepararEscenario, subir, subirOk, ventaDePrueba } from "@/verificacion/escenario";
 
@@ -96,6 +97,21 @@ describe("sincronización idempotente", () => {
     await revocarDispositivo(id);
     expect((await subir(e.tokenA, [venta])).status).toBe(401);
     expect(await contar("ventas")).toBe(0);
+  });
+
+  it("la lista de ventas del panel ordena por la hora del servidor y cada venta muestra solo sus renglones", async () => {
+    const [a, b2] = [variante(0), variante(5)];
+    // La primera en llegar dice haberse vendido después: el reloj de su celular está adelantado.
+    const primera = ventaDePrueba(e.evento.id, [{ varianteId: a.id, cantidad: 1, precio: a.precio }], { vendidoAt: "2030-01-01T12:00:00-03:00" });
+    const segunda = ventaDePrueba(e.evento.id, [{ varianteId: b2.id, cantidad: 2, precio: b2.precio }]);
+    await subirOk(e.tokenA, [primera]);
+    await subirOk(e.tokenB, [segunda]);
+
+    const lista = await ventasDelEvento(e.evento.id);
+    expect(lista.map((v) => v.clientUuid)).toEqual([segunda.clientUuid, primera.clientUuid]);
+    expect(lista.map((v) => v.detalle)).toEqual([expect.stringMatching(/ ×2$/), expect.stringMatching(/ ×1$/)]);
+    expect(lista.every((v) => !v.detalle.includes(","))).toBe(true);
+    expect(lista.map((v) => v.celular)).toEqual(["Celular B", "Celular A"]);
   });
 
   it("guarda los dos timestamps y acepta un reloj de dispositivo corrido", async () => {

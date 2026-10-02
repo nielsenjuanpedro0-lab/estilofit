@@ -1,6 +1,6 @@
 import { and, desc, eq, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db/conexion";
-import { eventos, ubicaciones } from "@/db/esquema";
+import { dispositivos, eventos, ubicaciones, ventas } from "@/db/esquema";
 
 // Cada evento abre su propia ubicación de stock. Un segundo equipo de venta móvil es otro evento
 // con otra ubicación: no hay límite y el stock de cada equipo queda separado.
@@ -38,6 +38,32 @@ const sumaDeMovimientos = (tipo: "transferencia" | "venta" | "ajuste" | "merma",
        where m.tipo = ${tipo} and ${sql.raw(lado === "origen" ? "m.ubicacion_origen_id" : "m.ubicacion_destino_id")} = "eventos"."ubicacion_id")`.mapWith(
     Number,
   );
+
+// Las ventas de un evento, ordenadas por la hora del servidor: los relojes de los celulares pueden
+// estar corridos, así que vendido_at se muestra pero no ordena.
+export async function ventasDelEvento(eventoId: number) {
+  return db()
+    .select({
+      id: ventas.id,
+      clientUuid: ventas.clientUuid,
+      recibidoAt: ventas.recibidoAt,
+      vendidoAt: ventas.vendidoAt,
+      celular: dispositivos.nombre,
+      medioPago: ventas.medioPago,
+      total: ventas.total,
+      totalCatalogo: ventas.totalCatalogo,
+      paraRevisar: ventas.paraRevisar,
+      motivoRevision: ventas.motivoRevision,
+      // Columna de la venta escrita a mano y calificada: ver el comentario de abajo.
+      detalle: sql<string>`(select string_agg(p.nombre || ' ' || va.talle || ' ×' || vi.cantidad, ', ' order by vi.id)
+                            from venta_items vi join variantes va on va.id = vi.variante_id join productos p on p.id = va.producto_id
+                            where vi.venta_id = "ventas"."id")`,
+    })
+    .from(ventas)
+    .innerJoin(dispositivos, eq(dispositivos.id, ventas.deviceId))
+    .where(eq(ventas.eventoId, eventoId))
+    .orderBy(desc(ventas.recibidoAt), desc(ventas.id));
+}
 
 export async function resumenDeEventos(filtro?: SQL) {
   return db()

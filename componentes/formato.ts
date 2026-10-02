@@ -24,4 +24,5 @@ const formatoMomento = new Intl.DateTimeFormat("es-AR", {
 export const momento = (fecha: Date) => formatoMomento.format(fecha);
 
 export const ESTADO_EVENTO = { preparacion: "En preparación", abierto: "Abierto", cerrado: "Cerrado" };
-export const TIPO_UBICACION = { deposito: "Depósito", showroom: "Showroom", evento: "Evento", web: "Web" };
+export const MEDIO_DE_PAGO = { efectivo: "Efectivo", transferencia: "Transferencia", tarjeta: "Tarjeta" };
+export const TIPO_UBICACION ={ deposito: "Depósito", showroom: "Showroom", evento: "Evento", web: "Web" };
