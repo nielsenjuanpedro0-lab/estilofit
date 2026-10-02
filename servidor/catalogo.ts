@@ -44,7 +44,7 @@ export async function actualizarVariante(id: number, cambios: { precio?: number;
   await db().update(variantes).set(cambios).where(eq(variantes.id, id));
 }
 
-export async function actualizarProducto(id: number, cambios: { nombre?: string; marca?: string; categoria?: string; activo?: boolean }) {
+export async function actualizarProducto(id: number, cambios: { activo: boolean }) {
   await db().update(productos).set(cambios).where(eq(productos.id, id));
 }
 

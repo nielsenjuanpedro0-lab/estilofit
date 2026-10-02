@@ -1,0 +1,182 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { and, asc, eq, inArray } from "drizzle-orm";
+import { abrirEventoAccion } from "@/app/panel/acciones";
+import { CargaDeViaje } from "@/app/panel/eventos/[id]/carga-de-viaje";
+import { db } from "@/db/conexion";
+import { eventos, productos, stockActual, ubicaciones, variantes, ventas } from "@/db/esquema";
+import { ESTADO_EVENTO, momento, pesos, rangoDeFechas } from "@/componentes/formato";
+import { Aviso, Boton, Selector, Vacio } from "@/componentes/primitivos";
+import { resumenDeEventos } from "@/servidor/eventos";
+
+function stockConNombres(ubicacionId: number) {
+  return db()
+    .select({
+      varianteId: variantes.id,
+      producto: productos.nombre,
+      marca: productos.marca,
+      categoria: productos.categoria,
+      talle: variantes.talle,
+      color: variantes.color,
+      sku: variantes.sku,
+      cantidad: stockActual.cantidad,
+    })
+    .from(stockActual)
+    .innerJoin(variantes, eq(variantes.id, stockActual.varianteId))
+    .innerJoin(productos, eq(productos.id, variantes.productoId))
+    .where(eq(stockActual.ubicacionId, ubicacionId))
+    .orderBy(asc(productos.categoria), asc(productos.id), asc(variantes.id));
+}
+
+export default async function DetalleDeEvento({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ origen?: string }>;
+}) {
+  const id = Number((await params).id);
+  if (!Number.isInteger(id)) notFound();
+  const [evento] = await resumenDeEventos(eq(eventos.id, id));
+  if (!evento) notFound();
+
+  const origenes = await db()
+    .select({ id: ubicaciones.id, nombre: ubicaciones.nombre })
+    .from(ubicaciones)
+    .where(and(eq(ubicaciones.activa, true), inArray(ubicaciones.tipo, ["deposito", "showroom"])))
+    .orderBy(asc(ubicaciones.id));
+  const pedido = Number((await searchParams).origen);
+  const origen = origenes.find((o) => o.id === pedido) ?? origenes[0];
+
+  const enEvento = (await stockConNombres(evento.ubicacionId)).filter((s) => s.cantidad !== 0);
+  const disponibles =
+    evento.estado === "cerrado" || !origen
+      ? []
+      : (await stockConNombres(origen.id))
+          .filter((s) => s.cantidad > 0)
+          .map(({ cantidad, ...resto }) => ({ ...resto, disponible: cantidad }));
+  const paraRevisar = await db()
+    .select()
+    .from(ventas)
+    .where(and(eq(ventas.eventoId, evento.id), eq(ventas.paraRevisar, true)))
+    .orderBy(asc(ventas.recibidoAt));
+  const totalEnEvento = enEvento.reduce((suma, s) => suma + s.cantidad, 0);
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-wrap items-start gap-3">
+        <div>
+          <Link href="/panel/eventos" className="text-sm underline">
+            ← Eventos
+          </Link>
+          <h1 className="text-3xl font-black">{evento.nombre}</h1>
+          <p className="text-lg">
+            {evento.lugar} · {rangoDeFechas(evento.fechaDesde, evento.fechaHasta)} ·{" "}
+            <span className="font-bold">{ESTADO_EVENTO[evento.estado]}</span>
+          </p>
+        </div>
+        <div className="ml-auto flex flex-wrap gap-2">
+          {evento.estado === "preparacion" && (
+            <form action={abrirEventoAccion.bind(null, evento.id)}>
+              <Boton variante="secundario">Marcar como abierto</Boton>
+            </form>
+          )}
+          {evento.estado !== "cerrado" && (
+            <Link href={`/panel/eventos/${evento.id}/cierre`} className="flex min-h-12 items-center rounded-lg border-2 border-black bg-black px-4 font-bold text-white">
+              Cerrar evento
+            </Link>
+          )}
+        </div>
+      </div>
+
+      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <Cifra titulo="Llevadas" valor={evento.llevadas} />
+        <Cifra titulo="Vendidas" valor={evento.vendidas} />
+        <Cifra titulo="Ventas" valor={evento.ventas} />
+        <Cifra titulo="Facturado" valor={pesos(evento.facturado)} />
+        <Cifra titulo="En el evento ahora" valor={totalEnEvento} />
+      </dl>
+
+      {paraRevisar.length > 0 && (
+        <Aviso tono="atencion">
+          <p className="font-bold">{paraRevisar.length} ventas para revisar. Entraron igual porque la plata ya se cobró:</p>
+          <ul className="mt-2 list-disc pl-5">
+            {paraRevisar.map((v) => (
+              <li key={v.id}>
+                {momento(v.recibidoAt)} · cobrado {pesos(v.total)} · catálogo {pesos(v.totalCatalogo)} · {v.motivoRevision}
+              </li>
+            ))}
+          </ul>
+        </Aviso>
+      )}
+
+      {evento.estado !== "cerrado" && (
+        <section className="flex flex-col gap-3">
+          <h2 className="text-2xl font-bold">Cargar el viaje</h2>
+          <form className="flex flex-wrap items-end gap-3">
+            <Selector etiqueta="Sale de" name="origen" defaultValue={origen?.id}>
+              {origenes.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.nombre}
+                </option>
+              ))}
+            </Selector>
+            <Boton variante="secundario" type="submit">
+              Cambiar origen
+            </Boton>
+          </form>
+          {origen && disponibles.length > 0 ? (
+            <CargaDeViaje key={origen.id} eventoId={evento.id} origenId={origen.id} disponibles={disponibles} />
+          ) : (
+            <Vacio titulo={`No hay stock en ${origen?.nombre ?? "ninguna ubicación"}`}>
+              Ingresá mercadería desde Catálogo o elegí otro origen.
+            </Vacio>
+          )}
+        </section>
+      )}
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-2xl font-bold">Stock en el evento</h2>
+        {enEvento.length === 0 ? (
+          <Vacio titulo={evento.estado === "cerrado" ? "El evento está cerrado y su stock volvió" : "Todavía no se cargó nada"}>
+            {evento.estado === "cerrado" ? "Mirá el resumen del cierre más arriba." : "Elegí variantes y cantidades en “Cargar el viaje” y confirmá."}
+          </Vacio>
+        ) : (
+          <div className="overflow-x-auto rounded-lg border-2 border-black">
+            <table className="w-full border-collapse text-left text-sm">
+              <thead className="bg-neutral-100">
+                <tr>
+                  <th className="p-2">Producto</th>
+                  <th className="p-2">Talle</th>
+                  <th className="p-2">Color</th>
+                  <th className="p-2">SKU</th>
+                  <th className="p-2 text-right">Cantidad</th>
+                </tr>
+              </thead>
+              <tbody>
+                {enEvento.map((s) => (
+                  <tr key={s.varianteId} className="border-t border-neutral-300">
+                    <td className="p-2 font-bold">{s.producto}</td>
+                    <td className="p-2">{s.talle}</td>
+                    <td className="p-2">{s.color}</td>
+                    <td className="p-2 font-mono">{s.sku}</td>
+                    <td className={`p-2 text-right tabular-nums ${s.cantidad < 0 ? "font-black text-red-700" : ""}`}>{s.cantidad}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function Cifra({ titulo, valor }: { titulo: string; valor: string | number }) {
+  return (
+    <div className="rounded-lg border-2 border-black p-3">
+      <dt className="text-sm font-bold">{titulo}</dt>
+      <dd className="text-2xl font-black tabular-nums">{valor}</dd>
+    </div>
+  );
+}

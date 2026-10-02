@@ -5,6 +5,9 @@ coverage/
 next-env.d.ts
 *.tsbuildinfo
 
+# Base local de desarrollo (db/base-local.ts).
+.base-local/
+
 # Secretos: solo viven en la máquina de cada uno.
 .env
 .env.local

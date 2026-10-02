@@ -1,4 +1,7 @@
-import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from "react";
+"use client";
+
+import { useActionState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from "react";
+import { useFormStatus } from "react-dom";
 
 // Primitivos de interfaz escritos a mano. Contraste alto y objetivos táctiles de 48px como mínimo:
 // se usa parado, apurado, al sol y a veces con frío.
@@ -19,6 +22,16 @@ export function Boton({
       className={`min-h-12 rounded-lg px-4 text-base font-bold select-none disabled:opacity-40 ${VARIANTES_BOTON[variante]} ${className}`}
       {...props}
     />
+  );
+}
+
+// Se deshabilita mientras el formulario se envía: un doble toque no carga dos veces.
+export function BotonEnviar({ children, variante, className }: { children: ReactNode; variante?: keyof typeof VARIANTES_BOTON; className?: string }) {
+  const { pending } = useFormStatus();
+  return (
+    <Boton type="submit" variante={variante} className={className} disabled={pending}>
+      {pending ? "Guardando…" : children}
+    </Boton>
   );
 }
 
@@ -71,4 +84,24 @@ export function Vacio({ titulo, children }: { titulo: string; children: ReactNod
   );
 }
 
-export const pesos = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
+type Estado = { error?: string; exito?: string } | null;
+
+// Un formulario que llama a una server action y muestra lo que respondió, debajo de los campos.
+export function Formulario({
+  accion,
+  children,
+  className = "flex flex-col gap-3",
+}: {
+  accion: (previo: Estado, formulario: FormData) => Promise<Estado>;
+  children: ReactNode;
+  className?: string;
+}) {
+  const [estado, enviar] = useActionState(accion, null);
+  return (
+    <form action={enviar} className={className}>
+      {children}
+      {estado?.error && <Aviso tono="error">{estado.error}</Aviso>}
+      {estado?.exito && <Aviso tono="exito">{estado.exito}</Aviso>}
+    </form>
+  );
+}
