@@ -16,6 +16,8 @@
     "db:local": "tsx db/base-local.ts"
   },
   "dependencies": {
+    "@serwist/next": "^9.5.12",
+    "dexie": "^4.4.6",
     "drizzle-orm": "^0.45.3",
     "next": "^15.5.27",
     "postgres": "^3.4.9",
@@ -34,6 +36,7 @@
     "drizzle-kit": "^0.31.11",
     "eslint": "^9.39.5",
     "eslint-config-next": "^15.5.27",
+    "serwist": "^9.5.12",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.15",
     "typescript": "5.9",

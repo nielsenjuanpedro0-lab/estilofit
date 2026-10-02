@@ -60,20 +60,24 @@ export function ventaDePrueba(
   };
 }
 
-export async function subir(token: string | null, ventas: unknown[]) {
+export async function subir(token: string | null, ventas: unknown[], extra: { pendientesFueraDelLote?: number; eventoId?: number | null } = {}) {
   const respuesta = await sincronizar(
     new Request("http://localhost/api/sincronizar", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      body: JSON.stringify({ ventas }),
+      body: JSON.stringify({ ventas, pendientesFueraDelLote: 0, eventoId: null, ...extra }),
     }),
   );
   const cuerpo: unknown = await respuesta.json();
   return { status: respuesta.status, cuerpo };
 }
 
-export async function subirOk(token: string, ventas: unknown[]): Promise<RespuestaSincronizacion> {
-  const { status, cuerpo } = await subir(token, ventas);
+export async function subirOk(
+  token: string,
+  ventas: unknown[],
+  extra: { pendientesFueraDelLote?: number; eventoId?: number | null } = {},
+): Promise<RespuestaSincronizacion> {
+  const { status, cuerpo } = await subir(token, ventas, extra);
   if (status !== 200) throw new Error(`La sincronización respondió ${status}: ${JSON.stringify(cuerpo)}`);
   return RespuestaSincronizacion.parse(cuerpo);
 }

@@ -27,12 +27,18 @@ export type VentaDelDispositivo = z.infer<typeof VentaDelDispositivo>;
 
 export const LoteDeVentas = z.object({
   // Cada venta se valida por separado: una rota no tumba al resto del lote.
-  ventas: z.array(z.unknown()).min(1).max(MAXIMO_VENTAS_POR_LOTE),
+  ventas: z.array(z.unknown()).max(MAXIMO_VENTAS_POR_LOTE),
+  // Ventas que el celular tiene sin subir además de las de este lote. El cierre lo usa para avisar.
+  pendientesFueraDelLote: z.number().int().nonnegative(),
+  // El evento que el celular tiene abierto, para responderle cuántos más venden en él.
+  eventoId: z.number().int().positive().nullable(),
 });
+export type LoteDeVentas = z.infer<typeof LoteDeVentas>;
 
 export const RespuestaSincronizacion = z.object({
   // Recién con el client_uuid en esta lista el dispositivo puede marcar la venta como subida.
   confirmadas: z.array(z.string()),
   rechazadas: z.array(z.object({ clientUuid: z.string(), motivo: z.string() })),
+  otrosDispositivos: z.number().int().nullable(),
 });
 export type RespuestaSincronizacion = z.infer<typeof RespuestaSincronizacion>;

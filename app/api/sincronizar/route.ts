@@ -1,32 +1,30 @@
-import { LoteDeVentas } from "@/contrato/sincronizacion";
-import { autenticarDispositivo } from "@/servidor/dispositivos";
+import { LoteDeVentas, type RespuestaSincronizacion } from "@/contrato/sincronizacion";
+import { dispositivoDelPedido, respuestaDeError, respuestaOk } from "@/servidor/api-celular";
 import { dentroDelLimite } from "@/servidor/limite-velocidad";
+import { informarPendientes, otrosDispositivosEn } from "@/servidor/paquete";
 import { registrarLote } from "@/servidor/sincronizacion";
 
-const SIN_CACHE = { "Cache-Control": "no-store" };
-
 export async function POST(request: Request) {
-  const dispositivo = await autenticarDispositivo(request.headers.get("authorization"));
-  if (!dispositivo) {
-    return Response.json(
-      { error: "Este dispositivo no está dado de alta o fue revocado. Pedí un código nuevo en el panel." },
-      { status: 401, headers: SIN_CACHE },
-    );
-  }
+  const dispositivo = await dispositivoDelPedido(request);
+  if (dispositivo instanceof Response) return dispositivo;
   if (!dentroDelLimite(dispositivo.id)) {
-    return Response.json({ error: "Demasiados pedidos seguidos. Se reintenta solo en un minuto." }, { status: 429, headers: { ...SIN_CACHE, "Retry-After": "60" } });
+    return respuestaDeError(429, "Demasiados pedidos seguidos. Se reintenta solo en un minuto.", { "Retry-After": "60" });
   }
 
   let cuerpo: unknown;
   try {
     cuerpo = await request.json();
   } catch {
-    return Response.json({ error: "La solicitud no es JSON válido" }, { status: 400, headers: SIN_CACHE });
+    return respuestaDeError(400, "La solicitud no es JSON válido");
   }
   const lote = LoteDeVentas.safeParse(cuerpo);
-  if (!lote.success) {
-    return Response.json({ error: "El lote de ventas no tiene el formato esperado" }, { status: 400, headers: SIN_CACHE });
-  }
+  if (!lote.success) return respuestaDeError(400, "El lote de ventas no tiene el formato esperado");
 
-  return Response.json(await registrarLote(dispositivo.id, lote.data.ventas), { headers: SIN_CACHE });
+  const resultado = await registrarLote(dispositivo.id, lote.data.ventas);
+  await informarPendientes(dispositivo.id, lote.data.pendientesFueraDelLote);
+  const respuesta: RespuestaSincronizacion = {
+    ...resultado,
+    otrosDispositivos: lote.data.eventoId === null ? null : await otrosDispositivosEn(lote.data.eventoId, dispositivo.id),
+  };
+  return respuestaOk(respuesta);
 }

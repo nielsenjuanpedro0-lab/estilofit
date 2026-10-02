@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   bigint,
   boolean,
   check,
@@ -105,6 +106,12 @@ export const dispositivos = pgTable("dispositivos", {
   enroladoAt: timestamp({ withTimezone: true }),
   revocadoAt: timestamp({ withTimezone: true }),
   ultimoContactoAt: timestamp({ withTimezone: true }),
+  // El evento del último paquete que bajó: así se sabe cuántos celulares venden en cada evento.
+  eventoId: integer().references((): AnyPgColumn => eventos.id),
+  // Lo que el celular dijo tener sin subir en su último contacto. El cierre lo usa para avisar
+  // que un faltante puede ser una venta que todavía no llegó.
+  pendientesInformadas: integer(),
+  pendientesInformadasAt: timestamp({ withTimezone: true }),
 });
 
 export const movimientos = pgTable(

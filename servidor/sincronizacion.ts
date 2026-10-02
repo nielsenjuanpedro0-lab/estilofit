@@ -113,8 +113,8 @@ function uuidDeLoQueVino(cruda: unknown) {
   return "";
 }
 
-export async function registrarLote(dispositivoId: number, ventasCrudas: unknown[]): Promise<RespuestaSincronizacion> {
-  const respuesta: RespuestaSincronizacion = { confirmadas: [], rechazadas: [] };
+export async function registrarLote(dispositivoId: number, ventasCrudas: unknown[]) {
+  const respuesta: Pick<RespuestaSincronizacion, "confirmadas" | "rechazadas"> = { confirmadas: [], rechazadas: [] };
   for (const cruda of ventasCrudas) {
     const venta = VentaDelDispositivo.safeParse(cruda);
     if (!venta.success) {
