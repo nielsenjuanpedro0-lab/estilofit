@@ -9,6 +9,7 @@ import {
   numeric,
   pgEnum,
   pgTable,
+  pgView,
   primaryKey,
   text,
   timestamp,
@@ -180,6 +181,13 @@ export const ventaItems = pgTable(
   },
   (t) => [check("venta_items_cantidad_positiva", sql`${t.cantidad} > 0`), index().on(t.ventaId)],
 );
+
+// La suma del libro mayor, definida en la migración 0001. Para leer la verdad sin pasar por la materializada.
+export const stockSegunMovimientos = pgView("stock_segun_movimientos", {
+  varianteId: integer().notNull(),
+  ubicacionId: integer().notNull(),
+  cantidad: integer().notNull(),
+}).existing();
 
 // Materializada por trigger. La fuente de verdad es siempre movimientos.
 export const stockActual = pgTable(
