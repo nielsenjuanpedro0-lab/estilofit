@@ -1,0 +1,11 @@
+@import "tailwindcss";
+
+/* Solo modo claro: se usa a pleno sol, una interfaz oscura ahí no se lee. */
+:root {
+  color-scheme: light;
+}
+
+body {
+  background: #ffffff;
+  color: #000000;
+}

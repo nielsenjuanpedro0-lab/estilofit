@@ -1,0 +1,16 @@
+node_modules/
+.next/
+out/
+coverage/
+next-env.d.ts
+*.tsbuildinfo
+
+# Secretos: solo viven en la máquina de cada uno.
+.env
+.env.local
+.env*.local
+
+# Generados por Serwist en el build.
+public/sw.js
+public/sw.js.map
+public/swe-worker-*.js
