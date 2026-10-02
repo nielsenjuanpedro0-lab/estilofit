@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { eventos } from "@/db/esquema";
-import { cerrarEvento } from "@/servidor/cierre";
+import { cerrarEvento, datosParaCierre } from "@/servidor/cierre";
 import { crearEvento, resumenDeEventos } from "@/servidor/eventos";
 import { transferir } from "@/servidor/transferencias";
 import { UNIDADES_POR_VARIANTE, prepararEscenario, subirOk, ventaDePrueba } from "@/verificacion/escenario";
@@ -58,11 +58,12 @@ describe("cierre de evento", () => {
       ok: true,
       diferencias: [{ varianteId: v5.id, esperadas: UNIDADES_POR_VARIANTE, contadas: UNIDADES_POR_VARIANTE - 2, diferencia: -2 }],
     });
-    const ajustes = await e.b.consultar<{ cantidad: number; origen: number | null }>(
-      "select cantidad, ubicacion_origen_id as origen from movimientos where tipo = 'ajuste' and ref_id = $1",
+    const ajustes = await e.b.consultar<{ tipo: string; cantidad: number; origen: number | null }>(
+      "select tipo, cantidad, ubicacion_origen_id as origen from movimientos where tipo in ('ajuste', 'merma') and ref_id = $1",
       [e.evento.id],
     );
-    expect(ajustes).toEqual([{ cantidad: 2, origen: e.evento.ubicacionId }]);
+    // Sin clasificar, un faltante es faltante real: merma.
+    expect(ajustes).toEqual([{ tipo: "merma", cantidad: 2, origen: e.evento.ubicacionId }]);
     expect(await stockEn(e.deposito.id, v5.id)).toBe(depositoAntes + UNIDADES_POR_VARIANTE - 2);
     expect(await stockEn(e.evento.ubicacionId, v0.id)).toBe(0);
     expect(await stockEn(e.evento.ubicacionId, v5.id)).toBe(0);
@@ -75,6 +76,27 @@ describe("cierre de evento", () => {
       devueltas: 20 * UNIDADES_POR_VARIANTE - 1 - 2,
     });
     expect(await e.b.consultar("select * from verificar_stock_actual()")).toEqual([]);
+  });
+
+  it("un faltante marcado como venta no registrada queda como ajuste y no como merma", async () => {
+    const [v0, v1] = e.llevadas;
+    if (!v0 || !v1) throw new Error("Escenario incompleto");
+    const conteo = (await conteoSegunLibro()).map((c) => {
+      if (c.varianteId === v0.id) return { ...c, contadas: c.contadas - 1, faltanteEs: "venta_no_registrada" as const };
+      if (c.varianteId === v1.id) return { ...c, contadas: c.contadas - 1 };
+      return c;
+    });
+    expect((await cerrarEvento(e.evento.id, conteo, e.deposito.id)).ok).toBe(true);
+
+    const asientos = await e.b.consultar<{ tipo: string; variante: number; nota: string }>(
+      "select tipo, variante_id as variante, nota from movimientos where tipo in ('ajuste', 'merma') and ref_id = $1 order by variante_id",
+      [e.evento.id],
+    );
+    expect(asientos).toEqual([
+      { tipo: "ajuste", variante: v0.id, nota: `Cierre: venta no registrada. Esperadas ${UNIDADES_POR_VARIANTE}, contadas ${UNIDADES_POR_VARIANTE - 1}` },
+      { tipo: "merma", variante: v1.id, nota: `Cierre: faltante real. Esperadas ${UNIDADES_POR_VARIANTE}, contadas ${UNIDADES_POR_VARIANTE - 1}` },
+    ]);
+    expect(await resumen(e.evento.id)).toMatchObject({ faltantes: 1, ventasNoRegistradas: 1, sobrantes: 0 });
   });
 
   it("dos dispositivos sobrevenden la última unidad y el cierre lo deja asentado como ajuste", async () => {
@@ -116,6 +138,27 @@ describe("cierre de evento", () => {
     expect(resultado).toEqual({ ok: false, motivo: "Faltan contar 1 variantes. Si no volvió ninguna unidad, cargá 0." });
     const [evento] = await e.b.base.select().from(eventos).where(eq(eventos.id, e.evento.id));
     expect(evento?.estado).toBe("abierto");
+  });
+});
+
+describe("pantalla de cierre", () => {
+  it("muestra por variante lo que salió, lo vendido y lo esperado, y cuántas ventas informó cada celular sin subir", async () => {
+    const v = variante(0);
+    await subirOk(e.tokenA, [ventaDePrueba(e.evento.id, [{ varianteId: v.id, cantidad: 1, precio: v.precio }])], {
+      eventoId: e.evento.id,
+      pendientesFueraDelLote: 4,
+    });
+    await e.b.consultar("update dispositivos set evento_id = $1 where nombre in ('Celular A', 'Celular B')", [e.evento.id]);
+
+    const datos = await datosParaCierre(e.evento.id);
+    if (!datos) throw new Error("Sin datos de cierre");
+    expect(datos.filas).toHaveLength(20);
+    expect(datos.filas.find((f) => f.varianteId === v.id)).toMatchObject({ salieron: UNIDADES_POR_VARIANTE, vendidas: 1, esperadas: UNIDADES_POR_VARIANTE - 1 });
+    expect(datos.filas.filter((f) => f.varianteId !== v.id).every((f) => f.vendidas === 0 && f.salieron === UNIDADES_POR_VARIANTE)).toBe(true);
+    expect(datos.celulares.map((c) => [c.nombre, c.pendientes])).toEqual([
+      ["Celular A", 4],
+      ["Celular B", null],
+    ]);
   });
 });
 

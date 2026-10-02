@@ -2,7 +2,7 @@ import { db } from "@/db/conexion";
 import { productos } from "@/db/esquema";
 import type { VentaDelDispositivo } from "@/contrato/sincronizacion";
 import { crearProducto, crearUbicacion, registrarIngreso } from "@/servidor/catalogo";
-import { cerrarEvento } from "@/servidor/cierre";
+import { cerrarEvento, type ClaseDeFaltante, type Conteo } from "@/servidor/cierre";
 import { canjearCodigo, crearDispositivo, revocarDispositivo } from "@/servidor/dispositivos";
 import { abrirEvento, crearEvento } from "@/servidor/eventos";
 import { registrarLote } from "@/servidor/sincronizacion";
@@ -197,18 +197,20 @@ export async function sembrar() {
     if (respuesta.rechazadas.length > 0) throw new Error(`La semilla generó ventas inválidas: ${JSON.stringify(respuesta.rechazadas)}`);
   }
 
-  // Al volver se cuenta todo y aparecen diferencias reales de un evento: dos medias y un gel
-  // que no están, y una remera de más que alguien guardó en la caja equivocada.
-  const conteo = [...quedan.entries()].map(([varianteId, contadas]) => ({ varianteId, contadas }));
-  const diferencias: [string, number][] = [
-    ["Medias", -2],
-    ["Nutrición", -1],
-    ["Remeras", 1],
+  // Al volver se cuenta todo y aparecen diferencias reales de un evento: dos medias que no están
+  // (faltante real), un gel que se cobró y no se cargó, y una remera de más que alguien guardó
+  // en la caja equivocada.
+  const conteo: Conteo[] = [...quedan.entries()].map(([varianteId, contadas]) => ({ varianteId, contadas }));
+  const diferencias: [string, number, ClaseDeFaltante][] = [
+    ["Medias", -2, "faltante"],
+    ["Nutrición", -1, "venta_no_registrada"],
+    ["Remeras", 1, "faltante"],
   ];
-  for (const [categoria, delta] of diferencias) {
+  for (const [categoria, delta, faltanteEs] of diferencias) {
     const fila = conteo.find((c) => c.contadas >= 2 && surtido.find((s) => s.varianteId === c.varianteId)?.categoria === categoria);
     if (!fila) throw new Error(`No quedó remanente de ${categoria} para simular la diferencia del cierre`);
     fila.contadas += delta;
+    fila.faltanteEs = faltanteEs;
   }
   const cierre = await cerrarEvento(tandil.id, conteo, deposito.id);
   if (!cierre.ok) throw new Error(`La semilla no pudo cerrar el evento: ${cierre.motivo}`);

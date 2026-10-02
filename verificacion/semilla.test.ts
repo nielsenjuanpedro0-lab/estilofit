@@ -47,7 +47,7 @@ describe("semilla", () => {
     const eventos = await b.consultar<{ nombre: string; estado: string; ventas: number; ajustes: number; stock: number }>(
       `select e.nombre, e.estado,
               (select count(*)::int from ventas v where v.evento_id = e.id) as ventas,
-              (select count(*)::int from movimientos m where m.tipo = 'ajuste' and m.ref_id = e.id) as ajustes,
+              (select count(*)::int from movimientos m where m.tipo in ('ajuste', 'merma') and m.ref_id = e.id) as ajustes,
               (select coalesce(sum(s.cantidad), 0)::int from stock_actual s where s.ubicacion_id = e.ubicacion_id) as stock
        from eventos e order by e.fecha_desde`,
     );

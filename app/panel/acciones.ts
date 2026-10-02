@@ -16,6 +16,7 @@ import {
   crearUbicacion,
   registrarIngreso,
 } from "@/servidor/catalogo";
+import { cerrarEvento } from "@/servidor/cierre";
 import { crearDispositivo, revocarDispositivo } from "@/servidor/dispositivos";
 import { abrirEvento, crearEvento } from "@/servidor/eventos";
 import { COOKIE_SESION, exigirSesionPanel } from "@/servidor/sesion-panel";
@@ -104,6 +105,30 @@ export async function cargarViaje(datos: unknown): Promise<{ ok: true; unidades:
   }
   revalidatePath(`/panel/eventos/${carga.data.eventoId}`);
   return { ok: true, unidades: items.reduce((suma, i) => suma + i.cantidad, 0) };
+}
+
+const CierreDeEvento = z.object({
+  eventoId: id,
+  destinoId: id,
+  conteo: z.array(
+    z.object({
+      varianteId: id,
+      contadas: z.number().int().nonnegative().max(99_999),
+      faltanteEs: z.enum(["faltante", "venta_no_registrada"]).optional(),
+    }),
+  ),
+});
+
+// Si cierra, redirige al evento y el cliente no recibe nada; si no, recibe el motivo.
+export async function cerrarEventoAccion(datos: unknown): Promise<{ error: string } | undefined> {
+  await exigirSesionPanel();
+  const cierre = CierreDeEvento.safeParse(datos);
+  if (!cierre.success) return { error: "El conteo tiene valores que no son cantidades válidas. Revisá que no haya negativos ni decimales." };
+  const resultado = await cerrarEvento(cierre.data.eventoId, cierre.data.conteo, cierre.data.destinoId);
+  if (!resultado.ok) return { error: resultado.motivo };
+  revalidatePath("/panel");
+  revalidatePath("/panel/eventos");
+  redirect(`/panel/eventos/${cierre.data.eventoId}`);
 }
 
 // --- Catálogo ---

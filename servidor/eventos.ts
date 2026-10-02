@@ -33,7 +33,7 @@ export async function abrirEvento(id: number) {
 // calificada: interpolar ${eventos.ubicacionId} en una consulta sin JOINs emite "ubicacion_id" sin
 // tabla, adentro del subselect lo resuelve la tabla de adentro (ventas tiene ubicacion_id), la
 // condición se vuelve una tautología y suma todo. No falla: devuelve mal. Hay un test para eso.
-const sumaDeMovimientos = (tipo: "transferencia" | "venta" | "ajuste", lado: "origen" | "destino") =>
+const sumaDeMovimientos = (tipo: "transferencia" | "venta" | "ajuste" | "merma", lado: "origen" | "destino") =>
   sql`(select coalesce(sum(m.cantidad), 0) from movimientos m
        where m.tipo = ${tipo} and ${sql.raw(lado === "origen" ? "m.ubicacion_origen_id" : "m.ubicacion_destino_id")} = "eventos"."ubicacion_id")`.mapWith(
     Number,
@@ -52,7 +52,9 @@ export async function resumenDeEventos(filtro?: SQL) {
       cerradoAt: eventos.cerradoAt,
       llevadas: sumaDeMovimientos("transferencia", "destino"),
       vendidas: sumaDeMovimientos("venta", "origen"),
-      faltantes: sumaDeMovimientos("ajuste", "origen"),
+      // Cierre: faltante real (merma), venta cobrada y no cargada (ajuste que sale), y sobrante (ajuste que entra).
+      faltantes: sumaDeMovimientos("merma", "origen"),
+      ventasNoRegistradas: sumaDeMovimientos("ajuste", "origen"),
       sobrantes: sumaDeMovimientos("ajuste", "destino"),
       devueltas: sumaDeMovimientos("transferencia", "origen"),
       ventas: sql`(select count(*) from ventas v where v.evento_id = "eventos"."id" and not v.anulada)`.mapWith(Number),
