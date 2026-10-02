@@ -4,6 +4,8 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Estilofit",
   description: "Stock y venta en eventos",
+  appleWebApp: { capable: true, title: "Estilofit", statusBarStyle: "default" },
+  icons: { apple: "/apple-touch-icon.png" },
 };
 
 export const viewport: Viewport = {
@@ -11,6 +13,7 @@ export const viewport: Viewport = {
   colorScheme: "light",
 };
 
+// El service worker lo registra el plugin de Serwist (ver next.config.ts), no un provider acá.
 export default function LayoutRaiz({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es-AR">

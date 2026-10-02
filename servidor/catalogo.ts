@@ -10,7 +10,7 @@ function sku(productoId: number, numeroDeVariante: number) {
   return `${productoId}${String(numeroDeVariante).padStart(2, "0")}`;
 }
 
-export type DatosVariante = { talle: string; color: string; precio: number; costo?: number | null };
+export type DatosVariante = { talle: string; color: string; precio: number; costo?: number | null; imagenUrl?: string | null };
 
 export async function crearProducto(datos: { nombre: string; marca: string; categoria: string; variantes: DatosVariante[] }) {
   return db().transaction(async (tx) => {

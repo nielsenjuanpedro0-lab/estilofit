@@ -36,6 +36,7 @@
     "drizzle-kit": "^0.31.11",
     "eslint": "^9.39.5",
     "eslint-config-next": "^15.5.27",
+    "fake-indexeddb": "^6.2.5",
     "serwist": "^9.5.12",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.15",

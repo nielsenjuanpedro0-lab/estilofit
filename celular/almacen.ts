@@ -1,0 +1,84 @@
+import Dexie, { type EntityTable, type Table } from "dexie";
+
+// Lo que vive en el celular. No se cifra a propósito: la clave tendría que vivir en el mismo
+// teléfono, así que no agregaría seguridad real. Si se pierde un celular, se revoca su token
+// desde el panel y deja de poder subir ventas o bajar el catálogo.
+
+export type Sesion = {
+  id: 1;
+  token: string;
+  dispositivoId: number;
+  dispositivoNombre: string;
+  // El servidor respondió 401: hay que volver a darlo de alta. Las ventas pendientes no se tocan.
+  revocado: boolean;
+};
+
+export type EventoBajado = {
+  id: number;
+  nombre: string;
+  lugar: string;
+  fechaDesde: string;
+  fechaHasta: string;
+  // Reloj del celular. Sirve para saber qué ventas confirmadas ya venían contadas en el paquete.
+  descargadoEn: number;
+  otrosDispositivos: number;
+};
+
+export type VarianteBajada = {
+  eventoId: number;
+  varianteId: number;
+  productoId: number;
+  producto: string;
+  marca: string;
+  categoria: string;
+  sku: string;
+  talle: string;
+  color: string;
+  precio: number;
+  imagen: Blob | null;
+  // Foto del servidor al bajar el paquete. El stock que se muestra resta las ventas locales posteriores.
+  stock: number;
+  vendidas: number;
+};
+
+export type RenglonDeVenta = { varianteId: number; cantidad: number; precio: number; descripcion: string };
+
+export type VentaLocal = {
+  clientUuid: string;
+  eventoId: number;
+  // Orden de la cola: FIFO por el momento en que se guardó.
+  creadaEn: number;
+  vendidoAt: string;
+  medioPago: "efectivo" | "transferencia" | "tarjeta";
+  total: number;
+  totalCatalogo: number;
+  items: RenglonDeVenta[];
+  estado: "pendiente" | "confirmada" | "rechazada";
+  motivoRechazo: string | null;
+  intentos: number;
+  proximoIntentoEn: number;
+  confirmadaEn: number | null;
+};
+
+export type Carrito = { eventoId: number; items: { varianteId: number; cantidad: number }[] };
+
+class Almacen extends Dexie {
+  sesion!: EntityTable<Sesion, "id">;
+  eventos!: EntityTable<EventoBajado, "id">;
+  variantes!: Table<VarianteBajada, [number, number]>;
+  ventas!: EntityTable<VentaLocal, "clientUuid">;
+  carritos!: EntityTable<Carrito, "eventoId">;
+
+  constructor() {
+    super("estilofit");
+    this.version(1).stores({
+      sesion: "id",
+      eventos: "id",
+      variantes: "[eventoId+varianteId], eventoId",
+      ventas: "clientUuid, estado, creadaEn, [eventoId+estado]",
+      carritos: "eventoId",
+    });
+  }
+}
+
+export const almacen = new Almacen();

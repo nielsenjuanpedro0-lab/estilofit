@@ -30,7 +30,7 @@ const MEDIAS = ["35-38", "39-42", "43-46"];
 type ProductoDeCatalogo = {
   nombre: string;
   marca: string;
-  categoria: string;
+  categoria: keyof typeof PICTOGRAMA;
   precio: number;
   talles: string[];
   // En nutrición el "color" es el sabor.
@@ -63,6 +63,19 @@ const catalogo: ProductoDeCatalogo[] = [
   { nombre: "Visera trail", marca: "Estilofit", categoria: "Accesorios", precio: 21000, talles: ["Único"], colores: ["Negro", "Blanco"], deposito: [10, 20], showroom: [2, 4], salida: 3 },
   { nombre: "Cuello multifunción", marca: "Estilofit", categoria: "Accesorios", precio: 14500, talles: ["Único"], colores: ["Negro", "Camuflado"], deposito: [15, 30], showroom: [3, 6], salida: 3 },
 ];
+
+// Sin fotos reales del cliente (importar su catálogo está fuera de alcance): un pictograma por categoría.
+const PICTOGRAMA = {
+  "Zapatillas trail": "zapatilla",
+  Remeras: "remera",
+  Calzas: "calza",
+  Camperas: "campera",
+  Medias: "medias",
+  Mochilas: "mochila",
+  Nutrición: "nutricion",
+  Accesorios: "accesorio",
+  Antiparras: "antiparras",
+};
 
 // La mercadería entró antes de la temporada de eventos.
 const FECHA_INGRESO = new Date("2026-08-01T09:00:00-03:00");
@@ -101,6 +114,7 @@ export async function sembrar() {
           talle,
           color,
           precio: item.precio,
+          imagenUrl: `/productos/${PICTOGRAMA[item.categoria]}.svg`,
           // Márgenes chicos: el costo anda entre el 58% y el 72% del precio.
           costo: Math.round((item.precio * (0.58 + azar() * 0.14)) / 100) * 100,
         })),
