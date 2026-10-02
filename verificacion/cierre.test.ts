@@ -59,7 +59,8 @@ describe("cierre de evento", () => {
       diferencias: [{ varianteId: v5.id, esperadas: UNIDADES_POR_VARIANTE, contadas: UNIDADES_POR_VARIANTE - 2, diferencia: -2 }],
     });
     const ajustes = await e.b.consultar<{ cantidad: number; origen: number | null }>(
-      "select cantidad, ubicacion_origen_id as origen from movimientos where tipo = 'ajuste'",
+      "select cantidad, ubicacion_origen_id as origen from movimientos where tipo = 'ajuste' and ref_id = $1",
+      [e.evento.id],
     );
     expect(ajustes).toEqual([{ cantidad: 2, origen: e.evento.ubicacionId }]);
     expect(await stockEn(e.deposito.id, v5.id)).toBe(depositoAntes + UNIDADES_POR_VARIANTE - 2);
@@ -87,7 +88,8 @@ describe("cierre de evento", () => {
 
     expect(resultado.ok && resultado.diferencias).toEqual([{ varianteId: v.id, esperadas: -1, contadas: 0, diferencia: 1 }]);
     const ajustes = await e.b.consultar<{ cantidad: number; destino: number | null; nota: string }>(
-      "select cantidad, ubicacion_destino_id as destino, nota from movimientos where tipo = 'ajuste'",
+      "select cantidad, ubicacion_destino_id as destino, nota from movimientos where tipo = 'ajuste' and ref_id = $1",
+      [e.evento.id],
     );
     expect(ajustes).toEqual([{ cantidad: 1, destino: e.evento.ubicacionId, nota: "Cierre: sobrante. Esperadas -1, contadas 0" }]);
     expect(await stockEn(e.evento.ubicacionId, v.id)).toBe(0);

@@ -1,15 +1,14 @@
 import { randomUUID } from "node:crypto";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq, getTableColumns, gte } from "drizzle-orm";
 import { POST as sincronizar } from "@/app/api/sincronizar/route";
 import { RespuestaSincronizacion, type VentaDelDispositivo } from "@/contrato/sincronizacion";
-import { ubicaciones, variantes } from "@/db/esquema";
+import { stockActual, ubicaciones, variantes } from "@/db/esquema";
 import { sembrar } from "@/db/semilla";
 import { canjearCodigo, crearDispositivo } from "@/servidor/dispositivos";
 import { abrirEvento, crearEvento } from "@/servidor/eventos";
 import { transferir } from "@/servidor/transferencias";
 import { levantarBaseEmbebida } from "@/verificacion/base-embebida";
 
-// Algunos talles de zapatilla tienen solo 2 en el depósito de la semilla.
 export const UNIDADES_POR_VARIANTE = 2;
 
 async function darDeAlta(nombre: string) {
@@ -22,18 +21,24 @@ async function darDeAlta(nombre: string) {
 // Un evento abierto con 20 variantes llevadas desde el depósito y dos celulares dados de alta.
 export async function prepararEscenario() {
   const b = await levantarBaseEmbebida();
-  await sembrar(b.base);
+  await sembrar();
 
   const [deposito] = await b.base.select().from(ubicaciones).where(eq(ubicaciones.nombre, "Depósito"));
   if (!deposito) throw new Error("La semilla no creó el depósito");
-  const evento = await crearEvento({ nombre: "Trail de prueba", lugar: "Tandil", fechaDesde: "2026-10-17", fechaHasta: "2026-10-18" });
-  const llevadas = await b.base.select().from(variantes).orderBy(asc(variantes.id)).limit(20);
+  const evento = await crearEvento({ nombre: "Trail de prueba", lugar: "Tandil", fechaDesde: "2026-10-24", fechaHasta: "2026-10-25" });
+  const llevadas = await b.base
+    .select(getTableColumns(variantes))
+    .from(variantes)
+    .innerJoin(stockActual, and(eq(stockActual.varianteId, variantes.id), eq(stockActual.ubicacionId, deposito.id)))
+    .where(gte(stockActual.cantidad, UNIDADES_POR_VARIANTE))
+    .orderBy(asc(variantes.id))
+    .limit(20);
   const transferencia = await transferir({
     origenId: deposito.id,
     destinoId: evento.ubicacionId,
     items: llevadas.map((v) => ({ varianteId: v.id, cantidad: UNIDADES_POR_VARIANTE })),
   });
-  if (!transferencia.ok) throw new Error("No alcanzó el stock del depósito para el escenario");
+  if (llevadas.length < 20 || !transferencia.ok) throw new Error("No alcanzó el stock del depósito para el escenario");
   await abrirEvento(evento.id);
 
   return { b, deposito, evento, llevadas, tokenA: await darDeAlta("Celular A"), tokenB: await darDeAlta("Celular B") };

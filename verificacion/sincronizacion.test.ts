@@ -21,8 +21,15 @@ function variante(i: number) {
   return v;
 }
 
-async function contar(tabla: "ventas" | "venta_items" | "movimientos", condicion = "true") {
-  const { n } = await e.b.consultarUno<{ n: number }>(`select count(*)::int as n from ${tabla} where ${condicion}`);
+// Solo lo del evento del escenario: la semilla ya trae ventas de otro evento.
+async function contar(que: "ventas" | "renglones" | "movimientos de venta") {
+  const consultas = {
+    ventas: "select count(*)::int as n from ventas where evento_id = $1",
+    renglones: "select count(*)::int as n from venta_items vi join ventas v on v.id = vi.venta_id where v.evento_id = $1",
+    "movimientos de venta":
+      "select count(*)::int as n from movimientos m join eventos ev on ev.ubicacion_id = m.ubicacion_origen_id where m.tipo = 'venta' and ev.id = $1",
+  };
+  const { n } = await e.b.consultarUno<{ n: number }>(consultas[que], [e.evento.id]);
   return n;
 }
 
@@ -53,10 +60,11 @@ describe("sincronización idempotente", () => {
     }
 
     expect(await contar("ventas")).toBe(3);
-    expect(await contar("venta_items")).toBe(4);
-    expect(await contar("movimientos", "tipo = 'venta'")).toBe(4);
+    expect(await contar("renglones")).toBe(4);
+    expect(await contar("movimientos de venta")).toBe(4);
     const uuidsDeMovimientos = await e.b.consultar<{ client_uuid: string }>(
-      "select client_uuid from movimientos where tipo = 'venta' order by client_uuid",
+      "select client_uuid from movimientos where tipo = 'venta' and ubicacion_origen_id = $1",
+      [e.evento.ubicacionId],
     );
     const primera = lote[0];
     if (!primera) throw new Error("Lote vacío");
@@ -124,7 +132,8 @@ describe("precio y casos con plata cobrada", () => {
     const respuesta = await subirOk(e.tokenA, casos);
     expect(respuesta.confirmadas).toHaveLength(3);
 
-    const guardadas = await e.b.base.select().from(ventas);
+    const guardadas = await e.b.base.select().from(ventas).where(eq(ventas.eventoId, e.evento.id));
+    expect(guardadas).toHaveLength(3);
     for (const g of guardadas) {
       expect(g.paraRevisar).toBe(true);
       expect(g.totalCatalogo).toBe(v.precio);
@@ -153,7 +162,7 @@ describe("precio y casos con plata cobrada", () => {
     expect(await contar("ventas")).toBe(3);
     expect(await stockEnEvento(v.id)).toBe(-1);
     expect(await e.b.consultar("select * from verificar_stock_actual()")).toEqual([]);
-    const dispositivos = await e.b.consultar<{ device_id: number }>("select distinct device_id from ventas");
+    const dispositivos = await e.b.consultar<{ device_id: number }>("select distinct device_id from ventas where evento_id = $1", [e.evento.id]);
     expect(dispositivos).toHaveLength(2);
   });
 });
