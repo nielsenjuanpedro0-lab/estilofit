@@ -1,6 +1,26 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/conexion";
-import { movimientos, stockActual } from "@/db/esquema";
+import { movimientos, productos, stockActual, variantes } from "@/db/esquema";
+
+// El stock de una ubicación con nombre, talle y color, en el orden del catálogo.
+export function stockConNombres(ubicacionId: number) {
+  return db()
+    .select({
+      varianteId: variantes.id,
+      producto: productos.nombre,
+      marca: productos.marca,
+      categoria: productos.categoria,
+      talle: variantes.talle,
+      color: variantes.color,
+      sku: variantes.sku,
+      cantidad: stockActual.cantidad,
+    })
+    .from(stockActual)
+    .innerJoin(variantes, eq(variantes.id, stockActual.varianteId))
+    .innerJoin(productos, eq(productos.id, variantes.productoId))
+    .where(eq(stockActual.ubicacionId, ubicacionId))
+    .orderBy(asc(productos.categoria), asc(productos.id), asc(variantes.id));
+}
 
 export type Faltante = { varianteId: number; pedido: number; disponible: number };
 export type ResultadoTransferencia = { ok: true } | { ok: false; faltantes: Faltante[] };

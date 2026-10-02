@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import type { Movidas } from "@/app/panel/elegir-stock";
 import { db } from "@/db/conexion";
 import { eventos, productos, ubicaciones, variantes } from "@/db/esquema";
 import {
@@ -70,29 +71,23 @@ export async function abrirEventoAccion(eventoId: number) {
   revalidatePath(`/panel/eventos/${eventoId}`);
 }
 
-const CargaDeViaje = z.object({
-  eventoId: id,
-  origenId: id,
-  items: z
-    .array(z.object({ varianteId: id, cantidad: z.number().int().positive().max(9999) }))
-    .min(1, "Elegí al menos una variante con cantidad"),
-});
-
-export async function cargarViaje(datos: unknown): Promise<{ ok: true; unidades: number } | { ok: false; error: string }> {
-  await exigirSesionPanel();
-  const carga = CargaDeViaje.safeParse(datos);
-  if (!carga.success) return { ok: false, error: primerError(carga.error) };
-  const [evento] = await db().select().from(eventos).where(eq(eventos.id, carga.data.eventoId));
-  if (!evento) return { ok: false, error: "El evento no existe" };
-  if (evento.estado === "cerrado") return { ok: false, error: "El evento ya está cerrado: no se le puede cargar stock" };
-
+const ItemsAMover = z
+  .array(z.object({ varianteId: id, cantidad: z.number().int().positive().max(9999) }))
+  .min(1, "Elegí al menos una variante con cantidad")
   // La misma variante cargada dos veces en la lista se suma en un solo renglón.
-  const porVariante = new Map<number, number>();
-  for (const item of carga.data.items) porVariante.set(item.varianteId, (porVariante.get(item.varianteId) ?? 0) + item.cantidad);
-  const items = [...porVariante].map(([varianteId, cantidad]) => ({ varianteId, cantidad }));
+  .transform((items) => {
+    const porVariante = new Map<number, number>();
+    for (const item of items) porVariante.set(item.varianteId, (porVariante.get(item.varianteId) ?? 0) + item.cantidad);
+    return [...porVariante].map(([varianteId, cantidad]) => ({ varianteId, cantidad }));
+  });
 
-  if (carga.data.origenId === evento.ubicacionId) return { ok: false, error: "El origen no puede ser el mismo evento" };
-  const resultado = await transferir({ origenId: carga.data.origenId, destinoId: evento.ubicacionId, items, nota: `Viaje a ${evento.nombre}` });
+// Mueve stock y, si falta en el origen, dice qué y cuánto con nombre, talle y color.
+async function moverStock(origenId: number, destinoId: number, crudos: unknown, nota: string): Promise<Movidas> {
+  const items = ItemsAMover.safeParse(crudos);
+  if (!items.success) return { ok: false, error: primerError(items.error) };
+  if (origenId === destinoId) return { ok: false, error: "El origen y el destino son la misma ubicación" };
+
+  const resultado = await transferir({ origenId, destinoId, items: items.data, nota });
   if (!resultado.ok) {
     const nombres = await db()
       .select({ id: variantes.id, nombre: productos.nombre, talle: variantes.talle, color: variantes.color })
@@ -101,10 +96,41 @@ export async function cargarViaje(datos: unknown): Promise<{ ok: true; unidades:
       .where(inArray(variantes.id, resultado.faltantes.map((f) => f.varianteId)));
     const nombre = new Map(nombres.map((n) => [n.id, `${n.nombre} ${n.talle} ${n.color}`]));
     const detalle = resultado.faltantes.map((f) => `${nombre.get(f.varianteId)}: pediste ${f.pedido}, hay ${f.disponible}`).join("; ");
-    return { ok: false, error: `No se cargó nada: falta stock en el origen (${detalle}). Bajá esas cantidades y volvé a confirmar.` };
+    return { ok: false, error: `No se movió nada: falta stock en el origen (${detalle}). Bajá esas cantidades y volvé a confirmar.` };
   }
-  revalidatePath(`/panel/eventos/${carga.data.eventoId}`);
-  return { ok: true, unidades: items.reduce((suma, i) => suma + i.cantidad, 0) };
+  revalidatePath("/panel");
+  return { ok: true, unidades: items.data.reduce((suma, i) => suma + i.cantidad, 0) };
+}
+
+export async function cargarViaje(eventoId: number, origenId: number, items: unknown): Promise<Movidas> {
+  await exigirSesionPanel();
+  const [evento] = await db().select().from(eventos).where(eq(eventos.id, id.parse(eventoId)));
+  if (!evento) return { ok: false, error: "El evento no existe" };
+  if (evento.estado === "cerrado") return { ok: false, error: "El evento ya está cerrado: no se le puede cargar stock" };
+  const resultado = await moverStock(id.parse(origenId), evento.ubicacionId, items, `Viaje a ${evento.nombre}`);
+  revalidatePath(`/panel/eventos/${evento.id}`);
+  return resultado;
+}
+
+// Transferencias sueltas: depósito ↔ showroom, reposición de un evento, o pasar stock entre dos
+// equipos que venden en paralelo. A un evento cerrado no se le mueve nada: su stock ya volvió.
+export async function transferirAccion(origenId: number, destinoId: number, items: unknown): Promise<Movidas> {
+  await exigirSesionPanel();
+  const ubicacionesPedidas = await db()
+    .select({ id: ubicaciones.id, nombre: ubicaciones.nombre, activa: ubicaciones.activa, estadoEvento: eventos.estado })
+    .from(ubicaciones)
+    .leftJoin(eventos, eq(eventos.ubicacionId, ubicaciones.id))
+    .where(inArray(ubicaciones.id, [id.parse(origenId), id.parse(destinoId)]));
+  const origen = ubicacionesPedidas.find((u) => u.id === origenId);
+  const destino = ubicacionesPedidas.find((u) => u.id === destinoId);
+  if (!origen || !destino) return { ok: false, error: "Una de las ubicaciones no existe. Recargá la página." };
+  if (!origen.activa || !destino.activa) return { ok: false, error: "Una de las ubicaciones está desactivada. Reactivala en Ubicaciones." };
+  if (origen.estadoEvento === "cerrado" || destino.estadoEvento === "cerrado") {
+    return { ok: false, error: "Uno de los dos es un evento cerrado: su stock ya volvió al depósito." };
+  }
+  const resultado = await moverStock(origen.id, destino.id, items, `Transferencia de ${origen.nombre} a ${destino.nombre}`);
+  revalidatePath("/panel/transferencias");
+  return resultado;
 }
 
 const CierreDeEvento = z.object({

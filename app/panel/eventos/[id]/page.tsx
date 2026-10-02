@@ -1,33 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { and, asc, eq, inArray } from "drizzle-orm";
-import { abrirEventoAccion } from "@/app/panel/acciones";
-import { CargaDeViaje } from "@/app/panel/eventos/[id]/carga-de-viaje";
+import { abrirEventoAccion, cargarViaje } from "@/app/panel/acciones";
+import { ElegirStock } from "@/app/panel/elegir-stock";
 import { db } from "@/db/conexion";
-import { eventos, productos, stockActual, ubicaciones, variantes, ventas } from "@/db/esquema";
+import { eventos, ubicaciones, ventas } from "@/db/esquema";
 import { ESTADO_EVENTO, momento, pesos, rangoDeFechas } from "@/componentes/formato";
 import { Aviso, Boton, Selector, Vacio } from "@/componentes/primitivos";
 import { asientosDelCierre } from "@/servidor/cierre";
 import { resumenDeEventos } from "@/servidor/eventos";
-
-function stockConNombres(ubicacionId: number) {
-  return db()
-    .select({
-      varianteId: variantes.id,
-      producto: productos.nombre,
-      marca: productos.marca,
-      categoria: productos.categoria,
-      talle: variantes.talle,
-      color: variantes.color,
-      sku: variantes.sku,
-      cantidad: stockActual.cantidad,
-    })
-    .from(stockActual)
-    .innerJoin(variantes, eq(variantes.id, stockActual.varianteId))
-    .innerJoin(productos, eq(productos.id, variantes.productoId))
-    .where(eq(stockActual.ubicacionId, ubicacionId))
-    .orderBy(asc(productos.categoria), asc(productos.id), asc(variantes.id));
-}
+import { stockConNombres } from "@/servidor/transferencias";
 
 export default async function DetalleDeEvento({
   params,
@@ -172,7 +154,7 @@ export default async function DetalleDeEvento({
             </Boton>
           </form>
           {origen && disponibles.length > 0 ? (
-            <CargaDeViaje key={origen.id} eventoId={evento.id} origenId={origen.id} disponibles={disponibles} />
+            <ElegirStock key={origen.id} disponibles={disponibles} mover={cargarViaje.bind(null, evento.id, origen.id)} destino={evento.nombre} />
           ) : (
             <Vacio titulo={`No hay stock en ${origen?.nombre ?? "ninguna ubicación"}`}>
               Ingresá mercadería desde Catálogo o elegí otro origen.

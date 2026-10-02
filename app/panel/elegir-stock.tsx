@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { cargarViaje } from "@/app/panel/acciones";
 import { Aviso, Boton, Campo, Selector } from "@/componentes/primitivos";
 
 export type Disponible = {
@@ -15,9 +14,20 @@ export type Disponible = {
   disponible: number;
 };
 
-// Elegir qué viaja y cuánto. Se busca por nombre, categoría y talle, y la cantidad se carga
-// tipeando o con los botones rápidos. Nada se mueve hasta confirmar.
-export function CargaDeViaje({ eventoId, origenId, disponibles }: { eventoId: number; origenId: number; disponibles: Disponible[] }) {
+export type Movidas = { ok: true; unidades: number } | { ok: false; error: string };
+
+// Elegir qué se mueve y cuánto: el viaje a un evento o cualquier transferencia entre ubicaciones.
+// Se busca por nombre, categoría y talle, y la cantidad se carga tipeando o con los botones
+// rápidos. Nada se mueve hasta confirmar. `mover` es una server action con origen y destino ya atados.
+export function ElegirStock({
+  disponibles,
+  mover,
+  destino,
+}: {
+  disponibles: Disponible[];
+  mover: (items: { varianteId: number; cantidad: number }[]) => Promise<Movidas>;
+  destino: string;
+}) {
   const [cantidades, setCantidades] = useState<Record<number, number>>({});
   const [texto, setTexto] = useState("");
   const [categoria, setCategoria] = useState("");
@@ -45,10 +55,10 @@ export function CargaDeViaje({ eventoId, origenId, disponibles }: { eventoId: nu
 
   function confirmar() {
     startTransition(async () => {
-      const respuesta = await cargarViaje({ eventoId, origenId, items: elegidas });
+      const respuesta = await mover(elegidas);
       if (respuesta.ok) {
         setCantidades({});
-        setResultado({ tono: "exito", mensaje: `Listo: se cargaron ${respuesta.unidades} unidades al evento.` });
+        setResultado({ tono: "exito", mensaje: `Listo: pasaron ${respuesta.unidades} unidades a ${destino}.` });
       } else {
         setResultado({ tono: "error", mensaje: respuesta.error });
       }
@@ -81,7 +91,7 @@ export function CargaDeViaje({ eventoId, origenId, disponibles }: { eventoId: nu
               <th className="p-2">Talle</th>
               <th className="p-2">Color</th>
               <th className="p-2 text-right">Hay</th>
-              <th className="p-2 text-center">Llevar</th>
+              <th className="p-2 text-center">Mover</th>
             </tr>
           </thead>
           <tbody>
@@ -131,7 +141,7 @@ export function CargaDeViaje({ eventoId, origenId, disponibles }: { eventoId: nu
           {elegidas.length} variantes · {unidades} unidades
         </p>
         <Boton className="ml-auto" disabled={elegidas.length === 0 || enviando} onClick={confirmar}>
-          {enviando ? "Cargando…" : "Confirmar carga al evento"}
+          {enviando ? "Moviendo…" : `Confirmar: pasar a ${destino}`}
         </Boton>
       </div>
       {resultado && <Aviso tono={resultado.tono}>{resultado.mensaje}</Aviso>}

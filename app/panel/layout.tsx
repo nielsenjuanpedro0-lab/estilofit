@@ -7,6 +7,7 @@ export const dynamic = "force-dynamic";
 const SECCIONES = [
   { href: "/panel", nombre: "Stock" },
   { href: "/panel/eventos", nombre: "Eventos" },
+  { href: "/panel/transferencias", nombre: "Transferencias" },
   { href: "/panel/catalogo", nombre: "Catálogo" },
   { href: "/panel/ubicaciones", nombre: "Ubicaciones" },
   { href: "/panel/dispositivos", nombre: "Dispositivos" },
