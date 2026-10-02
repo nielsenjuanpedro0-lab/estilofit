@@ -1,38 +1,48 @@
-import { asc, inArray, sql } from "drizzle-orm";
-import {
-  agregarVarianteAccion,
-  cambiarPrecioAccion,
-  cambiarProductoActivoAccion,
-  cambiarVarianteActivaAccion,
-  crearProductoAccion,
-  ingresarMercaderiaAccion,
-} from "@/app/panel/acciones";
+import Link from "next/link";
+import { and, asc, eq, ilike, inArray, or, sql, type SQL } from "drizzle-orm";
+import { crearProductoAccion, ingresarMercaderiaAccion } from "@/app/panel/acciones";
 import { db } from "@/db/conexion";
 import { productos, ubicaciones, variantes } from "@/db/esquema";
 import { pesos } from "@/componentes/formato";
 import { Boton, BotonEnviar, Campo, Formulario, Selector, Vacio } from "@/componentes/primitivos";
 
-export default async function Catalogo() {
-  const lista = await db().select().from(productos).orderBy(asc(productos.categoria), asc(productos.id));
-  const todas = await db()
+// La lista es liviana a propósito: se usa desde el depósito con la señal que haya.
+// Precios, talles y estado de cada variante se editan en la página del producto.
+export default async function Catalogo({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+  const { q = "" } = await searchParams;
+  const condiciones: SQL[] = [];
+  if (q.trim()) {
+    const patron = `%${q.trim()}%`;
+    const coincide = or(ilike(productos.nombre, patron), ilike(productos.marca, patron), ilike(productos.categoria, patron));
+    if (coincide) condiciones.push(coincide);
+  }
+
+  const lista = await db()
     .select({
-      id: variantes.id,
-      productoId: variantes.productoId,
-      sku: variantes.sku,
-      talle: variantes.talle,
-      color: variantes.color,
-      precio: variantes.precio,
-      activo: variantes.activo,
-      stock: sql`(select coalesce(sum(s.cantidad), 0) from stock_actual s where s.variante_id = "variantes"."id")`.mapWith(Number),
+      id: productos.id,
+      nombre: productos.nombre,
+      marca: productos.marca,
+      categoria: productos.categoria,
+      activo: productos.activo,
+      variantes: sql`count(${variantes.id})`.mapWith(Number),
+      precioMinimo: sql`min(${variantes.precio})`.mapWith(Number),
+      precioMaximo: sql`max(${variantes.precio})`.mapWith(Number),
+      skus: sql<string>`string_agg(${variantes.sku}, ' ' order by ${variantes.id})`,
+      stock: sql`(select coalesce(sum(s.cantidad), 0) from stock_actual s join variantes v on v.id = s.variante_id where v.producto_id = "productos"."id")`.mapWith(
+        Number,
+      ),
     })
-    .from(variantes)
-    .orderBy(asc(variantes.id));
+    .from(productos)
+    .leftJoin(variantes, eq(variantes.productoId, productos.id))
+    .where(and(...condiciones))
+    .groupBy(productos.id)
+    .orderBy(asc(productos.categoria), asc(productos.id));
   const destinos = await db()
     .select({ id: ubicaciones.id, nombre: ubicaciones.nombre })
     .from(ubicaciones)
-    .where(inArray(ubicaciones.tipo, ["deposito", "showroom"]))
+    .where(and(eq(ubicaciones.activa, true), inArray(ubicaciones.tipo, ["deposito", "showroom"])))
     .orderBy(asc(ubicaciones.id));
-  const categorias = [...new Set(lista.map((p) => p.categoria))];
+  const categorias = await db().selectDistinct({ categoria: productos.categoria }).from(productos).orderBy(asc(productos.categoria));
 
   return (
     <div className="flex flex-col gap-6">
@@ -68,87 +78,55 @@ export default async function Catalogo() {
           </Formulario>
           <datalist id="categorias">
             {categorias.map((c) => (
-              <option key={c} value={c} />
+              <option key={c.categoria} value={c.categoria} />
             ))}
           </datalist>
         </section>
       </div>
 
-      {lista.length === 0 && <Vacio titulo="El catálogo está vacío">Creá el primer producto con el formulario de arriba.</Vacio>}
+      <form className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+        <Campo etiqueta="Buscar producto" name="q" defaultValue={q} placeholder="Nombre, marca o categoría" />
+        <Boton type="submit">Buscar</Boton>
+      </form>
 
-      {lista.map((p) => (
-        <section key={p.id} className={`rounded-lg border-2 border-black ${p.activo ? "" : "opacity-60"}`}>
-          <header className="flex flex-wrap items-center gap-2 border-b-2 border-black bg-neutral-100 p-3">
-            <h2 className="text-lg font-black">{p.nombre}</h2>
-            <span>
-              {p.marca} · {p.categoria}
-            </span>
-            <form action={cambiarProductoActivoAccion.bind(null, p.id, !p.activo)} className="ml-auto">
-              <Boton variante="secundario" className="text-sm">
-                {p.activo ? "Desactivar producto" : "Reactivar producto"}
-              </Boton>
-            </form>
-          </header>
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-left text-sm">
-              <thead>
-                <tr>
-                  <th className="p-2">SKU</th>
-                  <th className="p-2">Talle</th>
-                  <th className="p-2">Color</th>
-                  <th className="p-2">Precio</th>
-                  <th className="p-2 text-right">Stock total</th>
-                  <th className="p-2" />
+      {lista.length === 0 ? (
+        <Vacio titulo={q ? "Ningún producto coincide" : "El catálogo está vacío"}>
+          {q ? "Probá con otra palabra." : "Creá el primer producto con el formulario de arriba."}
+        </Vacio>
+      ) : (
+        <div className="overflow-x-auto rounded-lg border-2 border-black">
+          <table className="w-full border-collapse text-left">
+            <thead className="bg-neutral-100">
+              <tr>
+                <th className="p-2">Producto</th>
+                <th className="p-2">Categoría</th>
+                <th className="p-2">SKU</th>
+                <th className="p-2 text-right">Precio</th>
+                <th className="p-2 text-right">Stock total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lista.map((p) => (
+                <tr key={p.id} className={`border-t border-neutral-300 ${p.activo ? "" : "text-neutral-500"}`}>
+                  <td className="p-2">
+                    <Link href={`/panel/catalogo/${p.id}`} className="font-bold underline">
+                      {p.nombre}
+                    </Link>{" "}
+                    <span className="text-neutral-600">{p.marca}</span>
+                    {!p.activo && <span className="ml-2 text-xs font-bold uppercase">inactivo</span>}
+                  </td>
+                  <td className="p-2">{p.categoria}</td>
+                  <td className="p-2 font-mono text-sm">{p.skus}</td>
+                  <td className="p-2 text-right tabular-nums">
+                    {p.precioMinimo === p.precioMaximo ? pesos(p.precioMinimo) : `${pesos(p.precioMinimo)} a ${pesos(p.precioMaximo)}`}
+                  </td>
+                  <td className="p-2 text-right tabular-nums">{p.stock}</td>
                 </tr>
-              </thead>
-              <tbody>
-                {todas
-                  .filter((v) => v.productoId === p.id)
-                  .map((v) => (
-                    <tr key={v.id} className={`border-t border-neutral-300 ${v.activo ? "" : "text-neutral-500"}`}>
-                      <td className="p-2 font-mono font-bold">{v.sku}</td>
-                      <td className="p-2">{v.talle}</td>
-                      <td className="p-2">{v.color}</td>
-                      <td className="p-2">
-                        <Formulario accion={cambiarPrecioAccion.bind(null, v.id)} className="flex items-center gap-2">
-                          <input
-                            name="precio"
-                            type="number"
-                            inputMode="numeric"
-                            min={0}
-                            defaultValue={v.precio}
-                            aria-label={`Precio de ${p.nombre} ${v.talle} ${v.color}, hoy ${pesos(v.precio)}`}
-                            className="min-h-12 w-32 rounded-lg border-2 border-black px-2 tabular-nums"
-                          />
-                          <BotonEnviar variante="secundario" className="text-sm">
-                            Guardar
-                          </BotonEnviar>
-                        </Formulario>
-                      </td>
-                      <td className="p-2 text-right tabular-nums">{v.stock}</td>
-                      <td className="p-2 text-right">
-                        <form action={cambiarVarianteActivaAccion.bind(null, v.id, !v.activo)}>
-                          <Boton variante="secundario" className="text-sm">
-                            {v.activo ? "Desactivar" : "Reactivar"}
-                          </Boton>
-                        </form>
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
-          <details className="border-t border-neutral-300 p-3">
-            <summary className="flex min-h-12 cursor-pointer items-center font-bold">Agregar talle o color</summary>
-            <Formulario accion={agregarVarianteAccion.bind(null, p.id)} className="mt-2 grid gap-3 sm:grid-cols-4 sm:items-end">
-              <Campo etiqueta="Talle" name="talle" required />
-              <Campo etiqueta="Color" name="color" required />
-              <Campo etiqueta="Precio" name="precio" type="number" inputMode="numeric" min={0} required />
-              <BotonEnviar>Agregar</BotonEnviar>
-            </Formulario>
-          </details>
-        </section>
-      ))}
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

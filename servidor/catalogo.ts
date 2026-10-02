@@ -44,7 +44,7 @@ export async function actualizarVariante(id: number, cambios: { precio?: number;
   await db().update(variantes).set(cambios).where(eq(variantes.id, id));
 }
 
-export async function actualizarProducto(id: number, cambios: { activo: boolean }) {
+export async function actualizarProducto(id: number, cambios: { activo: boolean } | { nombre: string; marca: string; categoria: string }) {
   await db().update(productos).set(cambios).where(eq(productos.id, id));
 }
 
@@ -60,6 +60,10 @@ export async function crearUbicacion(nombre: string, tipo: "deposito" | "showroo
   const [ubicacion] = await db().insert(ubicaciones).values({ nombre, tipo }).returning();
   if (!ubicacion) throw new Error("No se creó la ubicación");
   return ubicacion;
+}
+
+export async function renombrarUbicacion(id: number, nombre: string) {
+  await db().update(ubicaciones).set({ nombre }).where(eq(ubicaciones.id, id));
 }
 
 export async function cambiarUbicacionActiva(id: number, activa: boolean) {

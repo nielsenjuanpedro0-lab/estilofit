@@ -1,7 +1,8 @@
 import { and, asc, eq, ilike, inArray, isNull, ne, or, type SQL } from "drizzle-orm";
 import { db } from "@/db/conexion";
 import { eventos, productos, stockActual, ubicaciones, variantes } from "@/db/esquema";
-import { Boton, Campo, Selector, Vacio } from "@/componentes/primitivos";
+import { recalcularStockAccion, verificarStockAccion } from "@/app/panel/acciones";
+import { Boton, BotonEnviar, Campo, Formulario, Selector, Vacio } from "@/componentes/primitivos";
 
 type Filtros = { q?: string; categoria?: string };
 
@@ -64,6 +65,22 @@ export default async function StockPorUbicacion({ searchParams }: { searchParams
         </Selector>
         <Boton type="submit">Filtrar</Boton>
       </form>
+
+      <details className="rounded-lg border-2 border-neutral-400 p-3">
+        <summary className="flex min-h-12 cursor-pointer items-center font-bold">¿El stock no cuadra? Verificalo contra los movimientos</summary>
+        <p className="my-2 text-sm">
+          El stock de cada ubicación es la suma de sus movimientos. Esta pantalla lee una copia para ser rápida; si alguna vez no coincide,
+          se reconstruye desde los movimientos, que nunca se borran ni se editan.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Formulario accion={verificarStockAccion}>
+            <BotonEnviar variante="secundario">Verificar</BotonEnviar>
+          </Formulario>
+          <Formulario accion={recalcularStockAccion}>
+            <BotonEnviar variante="secundario">Recalcular desde los movimientos</BotonEnviar>
+          </Formulario>
+        </div>
+      </details>
 
       {filas.length === 0 ? (
         <Vacio titulo="No hay productos que coincidan">Probá con otra palabra o elegí “Todas” en categoría.</Vacio>

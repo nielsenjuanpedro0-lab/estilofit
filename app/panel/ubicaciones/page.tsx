@@ -1,5 +1,5 @@
 import { asc, ne } from "drizzle-orm";
-import { cambiarUbicacionActivaAccion, crearUbicacionAccion } from "@/app/panel/acciones";
+import { cambiarUbicacionActivaAccion, crearUbicacionAccion, renombrarUbicacionAccion } from "@/app/panel/acciones";
 import { db } from "@/db/conexion";
 import { ubicaciones } from "@/db/esquema";
 import { TIPO_UBICACION } from "@/componentes/formato";
@@ -30,7 +30,17 @@ export default async function Ubicaciones() {
       <ul className="flex flex-col gap-2">
         {lista.map((u) => (
           <li key={u.id} className={`flex flex-wrap items-center gap-3 rounded-lg border-2 border-black p-3 ${u.activa ? "" : "opacity-60"}`}>
-            <span className="text-lg font-bold">{u.nombre}</span>
+            <Formulario accion={renombrarUbicacionAccion.bind(null, u.id)} className="flex flex-wrap items-center gap-2">
+              <input
+                name="nombre"
+                defaultValue={u.nombre}
+                aria-label="Nombre de la ubicación"
+                className="min-h-12 rounded-lg border-2 border-black px-3 text-lg font-bold"
+              />
+              <BotonEnviar variante="secundario" className="text-sm">
+                Renombrar
+              </BotonEnviar>
+            </Formulario>
             <span>{TIPO_UBICACION[u.tipo]}</span>
             {!u.activa && <span className="text-sm font-bold uppercase">inactiva</span>}
             <form action={cambiarUbicacionActivaAccion.bind(null, u.id, !u.activa)} className="ml-auto">

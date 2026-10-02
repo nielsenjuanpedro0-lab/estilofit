@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { asc } from "drizzle-orm";
 import { movimientos, productos, stockActual, ubicaciones, variantes } from "@/db/esquema";
+import { recalcularStock, verificarStock } from "@/servidor/libro-mayor";
 import { levantarBaseEmbebida } from "@/verificacion/base-embebida";
 
 type Base = Awaited<ReturnType<typeof levantarBaseEmbebida>>;
@@ -93,6 +94,17 @@ describe("libro mayor de stock", () => {
       ),
     ).rejects.toThrow(/movimientos_origen_distinto_de_destino/);
     expect(await b.base.select().from(stockActual)).toEqual([]);
+  });
+
+  it("verificarStock y recalcularStock, los que usa el panel, detectan y arreglan un descuadre", async () => {
+    await cargarMovimientosDeEjemplo();
+    expect(await verificarStock()).toEqual([]);
+
+    await b.consultar("update stock_actual set cantidad = 50 where ubicacion_id = $1", [evento]);
+    expect(await verificarStock()).toEqual([{ varianteId, ubicacionId: evento, materializado: 50, segunMovimientos: 2 }]);
+
+    expect(await recalcularStock()).toBe(2);
+    expect(await verificarStock()).toEqual([]);
   });
 
   it("recalcular_stock_actual() reconstruye la tabla después de corromperla a propósito", async () => {

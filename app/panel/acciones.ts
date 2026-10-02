@@ -1,6 +1,6 @@
 "use server";
 
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, ne } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -16,10 +16,12 @@ import {
   crearProducto,
   crearUbicacion,
   registrarIngreso,
+  renombrarUbicacion,
 } from "@/servidor/catalogo";
 import { cerrarEvento } from "@/servidor/cierre";
 import { crearDispositivo, revocarDispositivo } from "@/servidor/dispositivos";
 import { abrirEvento, crearEvento } from "@/servidor/eventos";
+import { recalcularStock, verificarStock } from "@/servidor/libro-mayor";
 import { COOKIE_SESION, exigirSesionPanel } from "@/servidor/sesion-panel";
 import { transferir } from "@/servidor/transferencias";
 
@@ -157,6 +159,30 @@ export async function cerrarEventoAccion(datos: unknown): Promise<{ error: strin
   redirect(`/panel/eventos/${cierre.data.eventoId}`);
 }
 
+// --- Libro mayor ---
+
+// stock_actual es una copia para leer rápido; la verdad son los movimientos. Si alguna vez no
+// coinciden, la copia se reconstruye entera desde el libro mayor.
+export async function verificarStockAccion(): Promise<EstadoFormulario> {
+  await exigirSesionPanel();
+  const descuadres = await verificarStock();
+  if (descuadres.length === 0) return { exito: "El stock cuadra con el libro mayor: no hay nada que corregir." };
+  const detalle = descuadres
+    .slice(0, 5)
+    .map((d) => `variante ${d.varianteId} en ubicación ${d.ubicacionId}: dice ${d.materializado ?? "nada"}, los movimientos dan ${d.segunMovimientos ?? 0}`)
+    .join("; ");
+  return {
+    error: `Hay ${descuadres.length} ${descuadres.length === 1 ? "descuadre" : "descuadres"} (${detalle}${descuadres.length > 5 ? "; …" : ""}). Tocá “Recalcular desde los movimientos”.`,
+  };
+}
+
+export async function recalcularStockAccion(): Promise<EstadoFormulario> {
+  await exigirSesionPanel();
+  const filas = await recalcularStock();
+  revalidatePath("/panel");
+  return { exito: `Listo: el stock se reconstruyó desde los movimientos (${filas} filas). Ningún movimiento se tocó.` };
+}
+
 // --- Catálogo ---
 
 const lista = (mensaje: string) =>
@@ -182,7 +208,7 @@ export async function crearProductoAccion(_previo: EstadoFormulario, formulario:
   if (talles.length * colores.length > 99) return { error: "Son demasiadas combinaciones de talle y color: el máximo es 99 por producto" };
 
   await crearProducto({ ...producto, variantes: colores.flatMap((color) => talles.map((talle) => ({ talle, color, precio }))) });
-  revalidatePath("/panel/catalogo");
+  revalidatePath("/panel/catalogo", "layout");
   return { exito: `Se creó ${producto.nombre} con ${talles.length * colores.length} variantes` };
 }
 
@@ -197,7 +223,7 @@ export async function agregarVarianteAccion(productoId: number, _previo: EstadoF
   const datos = NuevaVariante.safeParse(Object.fromEntries(formulario));
   if (!datos.success) return { error: primerError(datos.error) };
   const variante = await agregarVariante(id.parse(productoId), datos.data);
-  revalidatePath("/panel/catalogo");
+  revalidatePath("/panel/catalogo", "layout");
   return { exito: `Variante agregada con SKU ${variante.sku}` };
 }
 
@@ -206,20 +232,35 @@ export async function cambiarPrecioAccion(varianteId: number, _previo: EstadoFor
   const precio = pesos("El precio tiene que ser un número de pesos, sin puntos").safeParse(formulario.get("precio"));
   if (!precio.success) return { error: primerError(precio.error) };
   await actualizarVariante(id.parse(varianteId), { precio: precio.data });
-  revalidatePath("/panel/catalogo");
+  revalidatePath("/panel/catalogo", "layout");
   return { exito: "Precio guardado" };
 }
 
 export async function cambiarVarianteActivaAccion(varianteId: number, activo: boolean) {
   await exigirSesionPanel();
   await actualizarVariante(id.parse(varianteId), { activo: z.boolean().parse(activo) });
-  revalidatePath("/panel/catalogo");
+  revalidatePath("/panel/catalogo", "layout");
+}
+
+const DatosDeProducto = z.object({
+  nombre: texto("Poné el nombre del producto"),
+  marca: texto("Poné la marca"),
+  categoria: texto("Poné la categoría"),
+});
+
+export async function editarProductoAccion(productoId: number, _previo: EstadoFormulario, formulario: FormData): Promise<EstadoFormulario> {
+  await exigirSesionPanel();
+  const datos = DatosDeProducto.safeParse(Object.fromEntries(formulario));
+  if (!datos.success) return { error: primerError(datos.error) };
+  await actualizarProducto(id.parse(productoId), datos.data);
+  revalidatePath("/panel/catalogo", "layout");
+  return { exito: "Producto guardado. Los celulares lo ven con el nombre nuevo cuando actualicen el paquete." };
 }
 
 export async function cambiarProductoActivoAccion(productoId: number, activo: boolean) {
   await exigirSesionPanel();
   await actualizarProducto(id.parse(productoId), { activo: z.boolean().parse(activo) });
-  revalidatePath("/panel/catalogo");
+  revalidatePath("/panel/catalogo", "layout");
 }
 
 const Ingreso = z.object({
@@ -244,7 +285,7 @@ export async function ingresarMercaderiaAccion(_previo: EstadoFormulario, formul
   if (!variante) return { error: `No hay ninguna variante con SKU ${datos.data.sku}. Fijate el SKU en la lista de abajo.` };
   await registrarIngreso(datos.data.ubicacionId, [{ varianteId: variante.id, cantidad: datos.data.cantidad }]);
   revalidatePath("/panel");
-  revalidatePath("/panel/catalogo");
+  revalidatePath("/panel/catalogo", "layout");
   return { exito: `Ingresaron ${datos.data.cantidad} × ${variante.nombre} ${variante.talle} ${variante.color}` };
 }
 
@@ -264,6 +305,20 @@ export async function crearUbicacionAccion(_previo: EstadoFormulario, formulario
   await crearUbicacion(datos.data.nombre, datos.data.tipo);
   revalidatePath("/panel/ubicaciones");
   return { exito: `Se creó ${datos.data.nombre}` };
+}
+
+export async function renombrarUbicacionAccion(ubicacionId: number, _previo: EstadoFormulario, formulario: FormData): Promise<EstadoFormulario> {
+  await exigirSesionPanel();
+  const nombre = texto("Poné el nombre de la ubicación").safeParse(formulario.get("nombre"));
+  if (!nombre.success) return { error: primerError(nombre.error) };
+  const [repetida] = await db()
+    .select({ id: ubicaciones.id })
+    .from(ubicaciones)
+    .where(and(eq(ubicaciones.nombre, nombre.data), ne(ubicaciones.id, id.parse(ubicacionId))));
+  if (repetida) return { error: `Ya existe una ubicación llamada ${nombre.data}` };
+  await renombrarUbicacion(id.parse(ubicacionId), nombre.data);
+  revalidatePath("/panel/ubicaciones");
+  return { exito: "Nombre guardado" };
 }
 
 export async function cambiarUbicacionActivaAccion(ubicacionId: number, activa: boolean) {

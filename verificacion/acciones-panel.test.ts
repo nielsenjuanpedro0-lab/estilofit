@@ -13,7 +13,15 @@ vi.mock("next/headers", () => ({
 }));
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
 
-const { transferirAccion } = await import("@/app/panel/acciones");
+const { editarProductoAccion, recalcularStockAccion, renombrarUbicacionAccion, transferirAccion, verificarStockAccion } = await import(
+  "@/app/panel/acciones"
+);
+
+function formulario(campos: Record<string, string>) {
+  const datos = new FormData();
+  for (const [clave, valor] of Object.entries(campos)) datos.set(clave, valor);
+  return datos;
+}
 
 type Escenario = Awaited<ReturnType<typeof prepararEscenario>>;
 let e: Escenario;
@@ -36,6 +44,32 @@ async function stockEn(ubicacionId: number, varianteId: number) {
   ]);
   return filas[0]?.cantidad ?? 0;
 }
+
+describe("catálogo, ubicaciones y libro mayor desde el panel", () => {
+  it("edita los datos de un producto y valida que no queden vacíos", async () => {
+    const { id } = await e.b.consultarUno<{ id: number }>("select id from productos where nombre = 'Gel energético'");
+    expect(await editarProductoAccion(id, null, formulario({ nombre: "Gel energético Roctane", marca: "GU", categoria: "Nutrición" }))).toMatchObject({
+      exito: expect.any(String),
+    });
+    expect((await e.b.consultarUno<{ nombre: string }>("select nombre from productos where id = $1", [id])).nombre).toBe("Gel energético Roctane");
+    expect(await editarProductoAccion(id, null, formulario({ nombre: " ", marca: "GU", categoria: "Nutrición" }))).toEqual({
+      error: "Poné el nombre del producto",
+    });
+  });
+
+  it("renombra una ubicación y no deja repetir un nombre", async () => {
+    expect(await renombrarUbicacionAccion(showroom, null, formulario({ nombre: "Depósito" }))).toEqual({ error: "Ya existe una ubicación llamada Depósito" });
+    expect(await renombrarUbicacionAccion(showroom, null, formulario({ nombre: "Showroom Tandil Centro" }))).toEqual({ exito: "Nombre guardado" });
+  });
+
+  it("verifica el stock, detecta un descuadre y lo arregla recalculando", async () => {
+    expect(await verificarStockAccion()).toMatchObject({ exito: expect.stringMatching(/cuadra/) });
+    await e.b.consultar("update stock_actual set cantidad = cantidad + 7 where ubicacion_id = $1", [showroom]);
+    expect(await verificarStockAccion()).toMatchObject({ error: expect.stringMatching(/descuadre/) });
+    expect(await recalcularStockAccion()).toMatchObject({ exito: expect.stringMatching(/reconstruyó/) });
+    expect(await verificarStockAccion()).toMatchObject({ exito: expect.stringMatching(/cuadra/) });
+  });
+});
 
 describe("transferencias desde el panel", () => {
   it("mueve del depósito al showroom y suma en un renglón la misma variante cargada dos veces", async () => {
