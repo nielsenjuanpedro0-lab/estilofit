@@ -14,3 +14,25 @@ export function dentroDelLimite(dispositivoId: number, ahora = Date.now()) {
   ventana.pedidos += 1;
   return ventana.pedidos <= PEDIDOS_POR_MINUTO;
 }
+
+// Ingreso al panel: el panel está abierto en internet y tiene una sola clave. Cinco intentos
+// fallidos desde la misma IP la bloquean quince minutos.
+const INTENTOS_FALLIDOS = 5;
+const BLOQUEO_MS = 15 * 60_000;
+const fallidos = new Map<string, { desde: number; intentos: number }>();
+
+export function ingresoBloqueado(ip: string, ahora = Date.now()) {
+  const registro = fallidos.get(ip);
+  if (!registro) return false;
+  if (ahora - registro.desde >= BLOQUEO_MS) {
+    fallidos.delete(ip);
+    return false;
+  }
+  return registro.intentos >= INTENTOS_FALLIDOS;
+}
+
+export function registrarIngresoFallido(ip: string, ahora = Date.now()) {
+  const registro = fallidos.get(ip);
+  if (!registro || ahora - registro.desde >= BLOQUEO_MS) fallidos.set(ip, { desde: ahora, intentos: 1 });
+  else registro.intentos += 1;
+}
