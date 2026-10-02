@@ -55,7 +55,8 @@ export async function ventasDelEvento(eventoId: number) {
       paraRevisar: ventas.paraRevisar,
       motivoRevision: ventas.motivoRevision,
       // Columna de la venta escrita a mano y calificada: ver el comentario de abajo.
-      detalle: sql<string>`(select string_agg(p.nombre || ' ' || va.talle || ' ×' || vi.cantidad, ', ' order by vi.id)
+      // El talle "Único" no dice nada; el color sí (en nutrición es el sabor).
+      detalle: sql<string>`(select string_agg(p.nombre || case when va.talle = 'Único' then '' else ' ' || va.talle end || ' ' || va.color || ' ×' || vi.cantidad, ', ' order by vi.id)
                             from venta_items vi join variantes va on va.id = vi.variante_id join productos p on p.id = va.producto_id
                             where vi.venta_id = "ventas"."id")`,
     })
