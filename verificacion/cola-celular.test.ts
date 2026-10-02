@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST as sincronizarEnServidor } from "@/app/api/sincronizar/route";
 import { almacen } from "@/celular/almacen";
 import { proximoIntento, sincronizar } from "@/celular/cola";
+import { quitarEvento } from "@/celular/paquete";
 import { guardarVenta } from "@/celular/venta";
 import { revocarDispositivo } from "@/servidor/dispositivos";
 import { prepararEscenario } from "@/verificacion/escenario";
@@ -129,6 +130,20 @@ describe("cola de ventas del celular", () => {
     expect(await sincronizar({ sinEsperar: true })).toBe("revocado");
     expect(await contarLocales("pendiente")).toBe(2);
     expect((await almacen.sesion.get(1))?.revocado).toBe(true);
+  });
+
+  it("un evento con ventas sin subir no se puede quitar del celular; subidas, sí, y las ventas quedan", async () => {
+    await almacen.eventos.put({ id: e.evento.id, nombre: "x", lugar: "x", fechaDesde: "2026-10-24", fechaHasta: "2026-10-25", descargadoEn: 0, otrosDispositivos: 0 });
+    red = "sin-red";
+    await vender(2);
+    expect(await quitarEvento(e.evento.id)).toMatchObject({ ok: false, mensaje: expect.stringMatching(/2 ventas sin subir/) });
+    expect(await almacen.eventos.get(e.evento.id)).toBeDefined();
+
+    red = "normal";
+    await sincronizar({ sinEsperar: true });
+    expect(await quitarEvento(e.evento.id)).toEqual({ ok: true });
+    expect(await almacen.eventos.get(e.evento.id)).toBeUndefined();
+    expect(await almacen.ventas.count()).toBe(2);
   });
 
   it("el backoff crece hasta un techo de cinco minutos", () => {

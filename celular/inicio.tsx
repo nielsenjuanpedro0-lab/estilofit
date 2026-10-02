@@ -6,7 +6,7 @@ import { almacen, type EventoBajado, type Sesion, type VentaLocal } from "@/celu
 import { darDeAlta, pedirEventos } from "@/celular/api";
 import { sincronizar } from "@/celular/cola";
 import { IndicadorDeCola } from "@/celular/indicador-de-cola";
-import { descargarPaquete } from "@/celular/paquete";
+import { descargarPaquete, quitarEvento } from "@/celular/paquete";
 import { rangoDeFechas, momento, pesos } from "@/componentes/formato";
 import type { EventoParaCelular } from "@/contrato/paquete";
 import { Aviso, Boton, Campo, Vacio } from "@/componentes/primitivos";
@@ -79,6 +79,28 @@ function Alta({ revocado }: { revocado: boolean }) {
       </Boton>
       {mensaje && <Aviso tono="error">{mensaje}</Aviso>}
     </form>
+  );
+}
+
+function QuitarEvento({ eventoId }: { eventoId: number }) {
+  const [mensaje, setMensaje] = useState<string | null>(null);
+  async function quitar() {
+    const resultado = await quitarEvento(eventoId);
+    if (!resultado.ok) setMensaje(resultado.mensaje);
+  }
+  return (
+    <details>
+      <summary className="flex min-h-12 cursor-pointer items-center text-sm font-bold underline">Quitar este evento del celular</summary>
+      <p className="my-2 text-sm">Borra el catálogo y el stock bajados. Las ventas no se tocan. Si ya terminó el evento, libera espacio.</p>
+      <Boton variante="peligro" onClick={quitar}>
+        Sí, quitarlo
+      </Boton>
+      {mensaje && (
+        <div className="mt-2">
+          <Aviso tono="error">{mensaje}</Aviso>
+        </div>
+      )}
+    </details>
   );
 }
 
@@ -194,6 +216,7 @@ export function InicioCelular() {
                     <a href={`/vender?evento=${e.id}`} className="flex min-h-14 items-center justify-center rounded-lg bg-black text-xl font-black text-white">
                       Vender
                     </a>
+                    <QuitarEvento eventoId={e.id} />
                   </div>
                 ))
               )}

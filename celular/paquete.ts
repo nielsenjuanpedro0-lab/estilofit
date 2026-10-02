@@ -29,7 +29,22 @@ async function comprimir(original: Blob): Promise<Blob> {
   }
 }
 
-type Descarga = { ok: true; variantes: number; unidades: number } | { ok: false; mensaje: string };
+// Libera el espacio de un evento terminado. Las ventas quedan (sirven para "reenviar todas"),
+// pero solo se puede si ninguna de ese evento está pendiente de subir.
+export async function quitarEvento(eventoId: number): Promise<{ ok: true } | { ok: false; mensaje: string }> {
+  return almacen.transaction("rw", almacen.eventos, almacen.variantes, almacen.carritos, almacen.ventas, async () => {
+    const pendientes = await almacen.ventas.where("[eventoId+estado]").equals([eventoId, "pendiente"]).count();
+    if (pendientes > 0) {
+      return { ok: false, mensaje: `Este evento tiene ${pendientes} ventas sin subir. Conectate y esperá a que suban antes de quitarlo.` };
+    }
+    await almacen.variantes.where("eventoId").equals(eventoId).delete();
+    await almacen.carritos.delete(eventoId);
+    await almacen.eventos.delete(eventoId);
+    return { ok: true };
+  });
+}
+
+type Descarga ={ ok: true; variantes: number; unidades: number } | { ok: false; mensaje: string };
 
 // Todo o nada: "paquete descargado" en la pantalla tiene que querer decir que está completo.
 export async function descargarPaquete(eventoId: number): Promise<Descarga> {

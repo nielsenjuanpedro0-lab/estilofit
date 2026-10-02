@@ -252,6 +252,17 @@ export function PantallaDeVenta() {
       {lineas.length > 0 && !cobro && (
         <div className="fixed inset-x-0 bottom-0 z-20 mx-auto max-w-md border-t-2 border-black bg-white p-2">
           {verCarrito && (
+            <button
+              onClick={() => {
+                void guardarCarrito([]);
+                setVerCarrito(false);
+              }}
+              className="mb-2 min-h-12 w-full rounded-lg border-2 border-red-700 font-bold text-red-700"
+            >
+              Vaciar carrito
+            </button>
+          )}
+          {verCarrito && (
             <ul className="mb-2 max-h-64 overflow-y-auto">
               {lineas.map((l) => (
                 <li key={l.varianteId} className="flex items-center gap-2 border-b border-neutral-300 py-1">
