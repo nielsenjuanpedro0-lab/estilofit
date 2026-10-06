@@ -13,7 +13,7 @@
     "db:generar": "drizzle-kit generate",
     "db:migrar": "node --env-file=.env.local node_modules/drizzle-kit/bin.cjs migrate",
     "db:semilla": "tsx --env-file=.env.local db/correr-semilla.ts",
-    "db:local": "tsx db/base-local.ts"
+    "db:local": "tsx --env-file=.env.local db/base-local.ts"
   },
   "dependencies": {
     "@serwist/next": "^9.5.12",

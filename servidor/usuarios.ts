@@ -1,5 +1,5 @@
 import { pbkdf2Sync, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
-import { and, asc, eq, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ne, sql } from "drizzle-orm";
 import { db } from "@/db/conexion";
 import { usuarios } from "@/db/esquema";
 import type { Rol } from "@/contrato/permisos";
@@ -84,7 +84,7 @@ export async function usuarioDeSesion(id: number, versionSesion: number) {
 }
 
 export async function listarUsuarios() {
-  return db().select().from(usuarios).orderBy(asc(usuarios.activo), asc(usuarios.nombre));
+  return db().select().from(usuarios).orderBy(desc(usuarios.activo), asc(usuarios.nombre));
 }
 
 // Cambiar la clave, el rol o desactivar cierra las sesiones abiertas de ese usuario.

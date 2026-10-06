@@ -54,7 +54,7 @@ export default async function Movimientos({ searchParams }: { searchParams: Prom
         <Indicador titulo="Unidades movidas" valor={listado.unidades.toLocaleString("es-AR")} />
       </div>
 
-      <form className="grid gap-3 rounded-xl border-2 border-black bg-white p-4 md:grid-cols-3 xl:grid-cols-6 xl:items-end">
+      <form className="grid gap-3 rounded-xl border-2 border-black bg-white p-4 md:grid-cols-3 md:items-end 2xl:grid-cols-6">
         <Campo etiqueta="Producto, SKU o nota" name="q" defaultValue={p.q} />
         <Selector etiqueta="Tipo" name="tipo" defaultValue={p.tipo ?? ""}>
           <option value="">Todos</option>
@@ -82,7 +82,7 @@ export default async function Movimientos({ searchParams }: { searchParams: Prom
         </Selector>
         <Campo etiqueta="Desde" name="desde" type="date" defaultValue={p.desde} />
         <Campo etiqueta="Hasta" name="hasta" type="date" defaultValue={p.hasta} />
-        <div className="flex gap-2 md:col-span-3 xl:col-span-6">
+        <div className="flex gap-2 md:col-span-3 2xl:col-span-6">
           <Boton type="submit">Filtrar</Boton>
           {filtrado && <EnlaceBoton href="/panel/movimientos">Limpiar filtros</EnlaceBoton>}
         </div>

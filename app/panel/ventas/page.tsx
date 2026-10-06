@@ -47,7 +47,7 @@ export default async function Ventas({ searchParams }: { searchParams: Promise<P
         <Indicador titulo="Ticket promedio" valor={pesos(listado.total > 0 ? listado.facturado / listado.total : 0)} />
       </div>
 
-      <form className="grid gap-3 rounded-xl border-2 border-black bg-white p-4 md:grid-cols-4 xl:grid-cols-8 xl:items-end">
+      <form className="grid gap-3 rounded-xl border-2 border-black bg-white p-4 md:grid-cols-4 md:items-end 2xl:grid-cols-8">
         <Campo etiqueta="Número o código" name="q" defaultValue={p.q} placeholder="Ej: 1520 o 3f9a…" />
         <Selector etiqueta="Evento" name="evento" defaultValue={p.evento ?? ""}>
           <option value="">Todos</option>
@@ -86,7 +86,7 @@ export default async function Ventas({ searchParams }: { searchParams: Promise<P
         </Selector>
         <Campo etiqueta="Llegó desde" name="desde" type="date" defaultValue={p.desde} />
         <Campo etiqueta="Llegó hasta" name="hasta" type="date" defaultValue={p.hasta} />
-        <div className="flex gap-2 md:col-span-4 xl:col-span-8">
+        <div className="flex gap-2 md:col-span-4 2xl:col-span-8">
           <Boton type="submit">Filtrar</Boton>
           {filtrado && <EnlaceBoton href="/panel/ventas">Limpiar filtros</EnlaceBoton>}
         </div>
