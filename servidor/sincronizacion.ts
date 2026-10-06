@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/conexion";
-import { eventos, movimientos, variantes, ventaItems, ventas } from "@/db/esquema";
+import { eventos, movimientos, usuarios, variantes, ventaItems, ventas } from "@/db/esquema";
 import { VentaDelDispositivo, type RespuestaSincronizacion } from "@/contrato/sincronizacion";
 
 // La regla detrás de todo este archivo: cuando hay plata cobrada en juego, el servidor acepta
@@ -64,6 +64,14 @@ async function registrarVenta(dispositivoId: number, venta: VentaDelDispositivo)
       motivos.push(`El dispositivo cobró $${venta.total} y el catálogo da $${totalCatalogo / 100}`);
     }
 
+    // Un vendedor que no existe o que fue desactivado no frena la venta: se registra sin vendedor y se revisa.
+    let vendedorId: number | null = null;
+    if (venta.vendedorId) {
+      const [vendedor] = await tx.select({ id: usuarios.id, activo: usuarios.activo }).from(usuarios).where(eq(usuarios.id, venta.vendedorId));
+      if (vendedor?.activo) vendedorId = vendedor.id;
+      else motivos.push(`El vendedor ${venta.vendedorId} no existe o está desactivado`);
+    }
+
     const [nueva] = await tx
       .insert(ventas)
       .values({
@@ -74,6 +82,7 @@ async function registrarVenta(dispositivoId: number, venta: VentaDelDispositivo)
         totalCatalogo: totalCatalogo / 100,
         medioPago: venta.medioPago,
         deviceId: dispositivoId,
+        usuarioId: vendedorId,
         vendidoAt: new Date(venta.vendidoAt),
         paraRevisar: motivos.length > 0,
         motivoRevision: motivos.length > 0 ? motivos.join(". ") : null,
@@ -98,6 +107,7 @@ async function registrarVenta(dispositivoId: number, venta: VentaDelDispositivo)
           refId: nueva.id,
           clientUuid: uuidDeRenglon(venta.clientUuid, i),
           deviceId: dispositivoId,
+          usuarioId: vendedorId,
           ocurridoAt: new Date(venta.vendidoAt),
         })),
       )

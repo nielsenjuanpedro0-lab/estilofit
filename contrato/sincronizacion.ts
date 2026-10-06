@@ -12,6 +12,8 @@ export const VentaDelDispositivo = z.object({
   // Reloj del dispositivo: se guarda pero no se usa para ordenar.
   vendidoAt: z.iso.datetime({ offset: true }),
   medioPago: z.enum(["efectivo", "transferencia", "tarjeta"]),
+  // Quien vendía (entró con su PIN). Opcional: las ventas guardadas por versiones viejas de la app no lo traen.
+  vendedorId: z.number().int().positive().nullable().optional(),
   total: z.number().nonnegative().max(99_999_999),
   items: z
     .array(

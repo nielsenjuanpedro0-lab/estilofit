@@ -202,6 +202,8 @@ export async function sembrar() {
       eventoId: tandil.id,
       vendidoAt: `${dia}T${hora}:${minuto}:00-03:00`,
       medioPago,
+      // Cada venta a nombre de uno de los tres vendedores, como quedan con el PIN en el celular.
+      vendedorId: vendedores[entre(0, vendedores.length - 1)]?.id ?? null,
       total: cobrado,
       items: items.map(({ varianteId, cantidad }) => ({ varianteId, cantidad })),
     });

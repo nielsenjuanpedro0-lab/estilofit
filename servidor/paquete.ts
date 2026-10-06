@@ -2,6 +2,7 @@ import { and, asc, eq, isNull, ne, sql } from "drizzle-orm";
 import { db } from "@/db/conexion";
 import { dispositivos, eventos, productos, stockActual, variantes } from "@/db/esquema";
 import type { EventoParaCelular, Paquete } from "@/contrato/paquete";
+import { vendedoresHabilitados } from "@/servidor/usuarios";
 
 const columnasDeEvento = {
   id: eventos.id,
@@ -58,5 +59,6 @@ export async function armarPaquete(eventoId: number, dispositivoId: number): Pro
     .orderBy(asc(productos.id), asc(variantes.id));
 
   await db().update(dispositivos).set({ eventoId: evento.id }).where(eq(dispositivos.id, dispositivoId));
-  return { evento: datosDelEvento, variantes: filas, otrosDispositivos: await otrosDispositivosEn(evento.id, dispositivoId) };
+  const vendedores = (await vendedoresHabilitados()).flatMap((v) => (v.pinHash ? [{ id: v.id, nombre: v.nombre, pinHash: v.pinHash }] : []));
+  return { evento: datosDelEvento, variantes: filas, otrosDispositivos: await otrosDispositivosEn(evento.id, dispositivoId), vendedores };
 }

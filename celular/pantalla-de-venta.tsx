@@ -2,7 +2,9 @@
 
 import { liveQuery } from "dexie";
 import { useEffect, useMemo, useState } from "react";
-import { almacen, type EventoBajado, type VentaLocal } from "@/celular/almacen";
+import { almacen, type EventoBajado, type Turno, type Vendedor, type VentaLocal } from "@/celular/almacen";
+import { ElegirVendedor } from "@/celular/elegir-vendedor";
+import { terminarTurno } from "@/celular/vendedor";
 import { IndicadorDeCola } from "@/celular/indicador-de-cola";
 import { armarGrilla, type ProductoEnGrilla, type VarianteEnGrilla } from "@/celular/inventario";
 import { guardarVenta } from "@/celular/venta";
@@ -35,17 +37,32 @@ function avisarAgregado(frecuencia = 880, duracion = 0.09) {
   oscilador.stop(ahora + duracion);
 }
 
+type DatosDelEvento = {
+  evento: EventoBajado | null;
+  grilla: ProductoEnGrilla[];
+  carrito: Linea[];
+  vendedores: Vendedor[];
+  turno: Turno | null;
+  // Lo que lleva vendido hoy quien tiene el turno, en este celular.
+  hoy: { ventas: number; total: number };
+};
+
 function useDatosDelEvento(eventoId: number | null) {
-  const [datos, setDatos] = useState<{ evento: EventoBajado | null; grilla: ProductoEnGrilla[]; carrito: Linea[] } | null>(null);
+  const [datos, setDatos] = useState<DatosDelEvento | null>(null);
   useEffect(() => {
     if (eventoId === null) return;
-    const suscripcion = liveQuery(async () => {
+    const suscripcion = liveQuery(async (): Promise<DatosDelEvento> => {
       const evento = (await almacen.eventos.get(eventoId)) ?? null;
-      if (!evento) return { evento, grilla: [], carrito: [] };
+      const vendedores = await almacen.vendedores.toArray();
+      const turno = (await almacen.turno.get(1)) ?? null;
+      if (!evento) return { evento, grilla: [], carrito: [], vendedores, turno, hoy: { ventas: 0, total: 0 } };
       const variantes = await almacen.variantes.where("eventoId").equals(eventoId).toArray();
       const ventas = await almacen.ventas.where("[eventoId+estado]").between([eventoId, ""], [eventoId, "￿"]).toArray();
       const carrito = (await almacen.carritos.get(eventoId))?.items ?? [];
-      return { evento, grilla: armarGrilla(evento, variantes, ventas), carrito };
+      const comienzoDelDia = new Date().setHours(0, 0, 0, 0);
+      const mias = turno ? ventas.filter((v) => v.vendedorId === turno.vendedorId && v.creadaEn >= comienzoDelDia) : [];
+      const hoy = { ventas: mias.length, total: mias.reduce((s, v) => s + v.total, 0) };
+      return { evento, grilla: armarGrilla(evento, variantes, ventas), carrito, vendedores, turno, hoy };
     }).subscribe({
       next: setDatos,
       error: (error: unknown) => {
@@ -112,6 +129,9 @@ export function PantallaDeVenta() {
   }
   const evento = datos.evento;
   const carrito = datos.carrito;
+  const turno = datos.turno;
+  // Si el evento tiene vendedores cargados, nadie vende sin decir quién es.
+  if (datos.vendedores.length > 0 && !turno) return <ElegirVendedor vendedores={datos.vendedores} evento={evento.nombre} />;
 
   const lineas = carrito.flatMap((l) => {
     const encontrada = variantes.get(l.varianteId);
@@ -141,6 +161,7 @@ export function PantallaDeVenta() {
     setGuardando(true);
     await guardarVenta({
       eventoId: evento.id,
+      vendedorId: turno?.vendedorId ?? null,
       medioPago: cobro.medio,
       total: cobrado,
       items: lineas.map((l) => ({
@@ -175,6 +196,17 @@ export function PantallaDeVenta() {
             </span>
           )}
         </div>
+        {turno && (
+          <div className="flex items-center gap-2 border-b border-neutral-300 bg-neutral-950 px-3 py-1.5 text-white">
+            <p className="flex-1 truncate text-sm">
+              Vende <span className="font-black text-yellow-300">{turno.nombre}</span> · hoy {datos.hoy.ventas} {datos.hoy.ventas === 1 ? "venta" : "ventas"} ·{" "}
+              {pesos(datos.hoy.total)}
+            </p>
+            <button onClick={() => void terminarTurno()} className="min-h-10 rounded-lg border-2 border-white px-3 text-sm font-bold">
+              Cambiar
+            </button>
+          </div>
+        )}
         <IndicadorDeCola />
         <div className="flex gap-2 border-b-2 border-black p-2">
           <input

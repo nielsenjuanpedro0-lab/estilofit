@@ -71,9 +71,14 @@ export async function descargarPaquete(eventoId: number): Promise<Descarga> {
     eventoId,
     imagen: imagenUrl ? (imagenes.get(imagenUrl) ?? null) : null,
   }));
-  await almacen.transaction("rw", almacen.eventos, almacen.variantes, async () => {
+  await almacen.transaction("rw", [almacen.eventos, almacen.variantes, almacen.vendedores, almacen.turno], async () => {
     await almacen.variantes.where("eventoId").equals(eventoId).delete();
     await almacen.variantes.bulkPut(variantes);
+    // Los vendedores son los de ahora: si alguien fue desactivado o cambió el PIN, deja de valer acá.
+    await almacen.vendedores.clear();
+    await almacen.vendedores.bulkPut(paquete.vendedores);
+    const turno = await almacen.turno.get(1);
+    if (turno && !paquete.vendedores.some((v) => v.id === turno.vendedorId)) await almacen.turno.delete(1);
     await almacen.eventos.put({
       id: paquete.evento.id,
       nombre: paquete.evento.nombre,

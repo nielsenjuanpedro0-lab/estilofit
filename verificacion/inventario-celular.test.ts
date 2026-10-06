@@ -15,6 +15,7 @@ function venta(varianteId: number, cantidad: number, estado: VentaLocal["estado"
     creadaEn: 0,
     vendidoAt: "2026-10-17T10:00:00-03:00",
     medioPago: "efectivo",
+    vendedorId: null,
     total: 1000 * cantidad,
     totalCatalogo: 1000 * cantidad,
     items: [{ varianteId, cantidad, precio: 1000, descripcion: "" }],

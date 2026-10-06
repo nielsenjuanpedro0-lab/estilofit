@@ -4,6 +4,8 @@ import { POST as sincronizarEnServidor } from "@/app/api/sincronizar/route";
 import { almacen } from "@/celular/almacen";
 import { proximoIntento, sincronizar } from "@/celular/cola";
 import { quitarEvento } from "@/celular/paquete";
+import { empezarTurno, pinCorrecto } from "@/celular/vendedor";
+import { hashearPin } from "@/servidor/usuarios";
 import { guardarVenta } from "@/celular/venta";
 import { revocarDispositivo } from "@/servidor/dispositivos";
 import { prepararEscenario } from "@/verificacion/escenario";
@@ -42,7 +44,7 @@ afterEach(async () => {
   await e.b.cerrar();
 });
 
-async function vender(cuantas: number, eventoId = e.evento.id) {
+async function vender(cuantas: number, eventoId = e.evento.id, vendedorId: number | null = null) {
   for (let i = 0; i < cuantas; i++) {
     const v = e.llevadas[i % e.llevadas.length];
     if (!v) throw new Error("Escenario incompleto");
@@ -50,6 +52,7 @@ async function vender(cuantas: number, eventoId = e.evento.id) {
       eventoId,
       items: [{ varianteId: v.id, cantidad: 1, precio: v.precio, descripcion: "prueba" }],
       medioPago: "efectivo",
+      vendedorId,
       total: v.precio,
     });
     // guardarVenta dispara la cola sola: se espera a que termine antes de la próxima.
@@ -144,6 +147,33 @@ describe("cola de ventas del celular", () => {
     expect(await quitarEvento(e.evento.id)).toEqual({ ok: true });
     expect(await almacen.eventos.get(e.evento.id)).toBeUndefined();
     expect(await almacen.ventas.count()).toBe(2);
+  });
+
+  it("la venta llega a nombre de quien vendía, y un vendedor desactivado no la frena pero la manda a revisar", async () => {
+    const { id: nico } = await e.b.consultarUno<{ id: number }>("select id from usuarios where nombre = 'Nicolás Pereyra'");
+    await vender(1, e.evento.id, nico);
+    expect(await e.b.consultarUno("select usuario_id, para_revisar from ventas order by id desc limit 1")).toEqual({ usuario_id: nico, para_revisar: false });
+    const { usuario } = await e.b.consultarUno<{ usuario: number }>("select usuario_id as usuario from movimientos order by id desc limit 1");
+    expect(usuario).toBe(nico);
+
+    await e.b.consultar("update usuarios set activo = false where id = $1", [nico]);
+    await vender(1, e.evento.id, nico);
+    const ultima = await e.b.consultarUno<{ usuario_id: number | null; motivo_revision: string }>(
+      "select usuario_id, motivo_revision from ventas order by id desc limit 1",
+    );
+    expect(ultima).toEqual({ usuario_id: null, motivo_revision: `El vendedor ${nico} no existe o está desactivado` });
+  });
+
+  it("el PIN se verifica en el celular con la misma cuenta que usó el servidor para guardarlo", async () => {
+    const hash = hashearPin("4729");
+    expect(await pinCorrecto("4729", hash)).toBe(true);
+    expect(await pinCorrecto("4728", hash)).toBe(false);
+
+    await almacen.vendedores.put({ id: 9, nombre: "Flor", pinHash: hash });
+    expect(await empezarTurno({ id: 9, nombre: "Flor", pinHash: hash }, "0000")).toBe(false);
+    expect(await almacen.turno.get(1)).toBeUndefined();
+    expect(await empezarTurno({ id: 9, nombre: "Flor", pinHash: hash }, "4729")).toBe(true);
+    expect(await almacen.turno.get(1)).toMatchObject({ vendedorId: 9, nombre: "Flor" });
   });
 
   it("el backoff crece hasta un techo de cinco minutos", () => {

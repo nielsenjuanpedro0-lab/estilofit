@@ -37,5 +37,7 @@ export const Paquete = z.object({
   ),
   // Otros celulares que bajaron este evento. Si hay alguno, el stock de la pantalla es estimado.
   otrosDispositivos: z.number().int(),
+  // Quiénes pueden vender y el hash de su PIN, para verificarlo sin señal.
+  vendedores: z.array(z.object({ id: z.number().int(), nombre: z.string(), pinHash: z.string() })),
 });
 export type Paquete = z.infer<typeof Paquete>;

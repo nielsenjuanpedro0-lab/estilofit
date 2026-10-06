@@ -6,6 +6,7 @@ export async function guardarVenta(datos: {
   eventoId: number;
   items: RenglonDeVenta[];
   medioPago: VentaLocal["medioPago"];
+  vendedorId: number | null;
   total: number;
 }): Promise<VentaLocal> {
   const venta: VentaLocal = {
@@ -15,6 +16,7 @@ export async function guardarVenta(datos: {
     creadaEn: Date.now(),
     vendidoAt: new Date().toISOString(),
     medioPago: datos.medioPago,
+    vendedorId: datos.vendedorId,
     total: datos.total,
     totalCatalogo: datos.items.reduce((suma, i) => suma + i.precio * i.cantidad, 0),
     items: datos.items,

@@ -50,6 +50,8 @@ export type VentaLocal = {
   creadaEn: number;
   vendidoAt: string;
   medioPago: "efectivo" | "transferencia" | "tarjeta";
+  // Quien estaba vendiendo (entró con su PIN). Nulo si el evento no tenía vendedores cargados.
+  vendedorId: number | null;
   total: number;
   totalCatalogo: number;
   items: RenglonDeVenta[];
@@ -62,12 +64,20 @@ export type VentaLocal = {
 
 export type Carrito = { eventoId: number; items: { varianteId: number; cantidad: number }[] };
 
+// Quiénes pueden vender, con el hash de su PIN: llega con el paquete y se verifica sin señal.
+export type Vendedor = { id: number; nombre: string; pinHash: string };
+
+// Quién está vendiendo ahora en este celular. Uno a la vez; se cambia desde la pantalla de venta.
+export type Turno = { id: 1; vendedorId: number; nombre: string; desde: number };
+
 class Almacen extends Dexie {
   sesion!: EntityTable<Sesion, "id">;
   eventos!: EntityTable<EventoBajado, "id">;
   variantes!: Table<VarianteBajada, [number, number]>;
   ventas!: EntityTable<VentaLocal, "clientUuid">;
   carritos!: EntityTable<Carrito, "eventoId">;
+  vendedores!: EntityTable<Vendedor, "id">;
+  turno!: EntityTable<Turno, "id">;
 
   constructor() {
     super("estilofit");
@@ -78,6 +88,17 @@ class Almacen extends Dexie {
       ventas: "clientUuid, estado, creadaEn, [eventoId+estado]",
       carritos: "eventoId",
     });
+    // Versión 2: vendedores con PIN. Las ventas guardadas antes quedan sin vendedor.
+    this.version(2)
+      .stores({ vendedores: "id", turno: "id" })
+      .upgrade((tx) =>
+        tx
+          .table("ventas")
+          .toCollection()
+          .modify((venta) => {
+            venta.vendedorId ??= null;
+          }),
+      );
   }
 }
 

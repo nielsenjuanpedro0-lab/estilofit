@@ -42,6 +42,14 @@ afterEach(async () => {
   await e.b.cerrar();
 });
 
+// Una variante que todavía tiene de sobra en el depósito después de armar el escenario.
+async function conStockEnDeposito() {
+  return e.b.consultarUno<{ id: number }>(
+    "select variante_id as id from stock_actual where ubicacion_id = $1 order by cantidad desc, variante_id limit 1",
+    [e.deposito.id],
+  );
+}
+
 async function stockEn(ubicacionId: number, varianteId: number) {
   const filas = await e.b.consultar<{ cantidad: number }>("select cantidad from stock_actual where ubicacion_id = $1 and variante_id = $2", [
     ubicacionId,
@@ -78,8 +86,7 @@ describe("catálogo, ubicaciones y libro mayor desde el panel", () => {
 
 describe("transferencias desde el panel", () => {
   it("mueve del depósito al showroom y suma en un renglón la misma variante cargada dos veces", async () => {
-    const v = e.llevadas[3];
-    if (!v) throw new Error("Escenario incompleto");
+    const v = await conStockEnDeposito();
     const antes = { deposito: await stockEn(e.deposito.id, v.id), showroom: await stockEn(showroom, v.id) };
 
     const resultado = await transferirAccion(e.deposito.id, showroom, [
@@ -137,8 +144,7 @@ describe("roles y auditoría", () => {
   });
 
   it("cada cambio queda en la auditoría con su autor, y el movimiento firmado", async () => {
-    const v = e.llevadas[3];
-    if (!v) throw new Error("Escenario incompleto");
+    const v = await conStockEnDeposito();
     await entrarComo("lucia@estilofit.com.ar");
     await transferirAccion(e.deposito.id, showroom, [{ varianteId: v.id, cantidad: 1 }]);
 

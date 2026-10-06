@@ -66,6 +66,7 @@ async function subir({ todas = false, sinEsperar = false }: Opciones): Promise<R
         eventoId: v.eventoId,
         vendidoAt: v.vendidoAt,
         medioPago: v.medioPago,
+        vendedorId: v.vendedorId,
         total: v.total,
         items: v.items.map(({ varianteId, cantidad }) => ({ varianteId, cantidad })),
       })),
