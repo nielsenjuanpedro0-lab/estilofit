@@ -18,9 +18,9 @@ import {
   editarUsuario,
   formatoDePin,
   otrosAdministradoresActivos,
-  problemaConDatos,
-  registrarAuditoria,
+  problemaConDatos
 } from "@/servidor/usuarios";
+import { registrarAuditoria } from "@/servidor/auditoria";
 
 // Usuarios y roles: solo los administra un administrador. Cada cambio queda en la auditoría,
 // sin claves ni PIN, que nunca se registran.

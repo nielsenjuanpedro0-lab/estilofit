@@ -1,6 +1,6 @@
 import { and, desc, eq, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db/conexion";
-import { dispositivos, eventos, ubicaciones, ventas } from "@/db/esquema";
+import { dispositivos, eventos, ubicaciones, usuarios, ventas } from "@/db/esquema";
 
 // Cada evento abre su propia ubicación de stock. Un segundo equipo de venta móvil es otro evento
 // con otra ubicación: no hay límite y el stock de cada equipo queda separado.
@@ -49,11 +49,13 @@ export async function ventasDelEvento(eventoId: number) {
       recibidoAt: ventas.recibidoAt,
       vendidoAt: ventas.vendidoAt,
       celular: dispositivos.nombre,
+      vendedor: usuarios.nombre,
       medioPago: ventas.medioPago,
       total: ventas.total,
       totalCatalogo: ventas.totalCatalogo,
       paraRevisar: ventas.paraRevisar,
       motivoRevision: ventas.motivoRevision,
+      revisadaAt: ventas.revisadaAt,
       // Columna de la venta escrita a mano y calificada: ver el comentario de abajo.
       // El talle "Único" no dice nada; el color sí (en nutrición es el sabor).
       detalle: sql<string>`(select string_agg(p.nombre || case when va.talle = 'Único' then '' else ' ' || va.talle end || ' ' || va.color || ' ×' || vi.cantidad, ', ' order by vi.id)
@@ -62,6 +64,7 @@ export async function ventasDelEvento(eventoId: number) {
     })
     .from(ventas)
     .innerJoin(dispositivos, eq(dispositivos.id, ventas.deviceId))
+    .leftJoin(usuarios, eq(usuarios.id, ventas.usuarioId))
     .where(eq(ventas.eventoId, eventoId))
     .orderBy(desc(ventas.recibidoAt), desc(ventas.id));
 }

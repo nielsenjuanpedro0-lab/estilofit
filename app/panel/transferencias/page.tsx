@@ -5,13 +5,15 @@ import { ElegirStock } from "@/app/panel/elegir-stock";
 import { db } from "@/db/conexion";
 import { eventos, movimientos, productos, ubicaciones, variantes } from "@/db/esquema";
 import { momento, TIPO_UBICACION } from "@/componentes/formato";
-import { Aviso, Boton, Selector, Vacio } from "@/componentes/primitivos";
+import { Aviso, Boton, ContenedorTabla, EncabezadoDePagina, EnlaceBoton, Selector, Tarjeta, Vacio } from "@/componentes/primitivos";
+import { paginaConPermiso } from "@/servidor/acceso";
 import { stockConNombres } from "@/servidor/transferencias";
 
 const origen = alias(ubicaciones, "origen");
 const destino = alias(ubicaciones, "destino");
 
 export default async function Transferencias({ searchParams }: { searchParams: Promise<{ origen?: string; destino?: string }> }) {
+  await paginaConPermiso("operar");
   const pedido = await searchParams;
 
   // Todas las ubicaciones activas menos los eventos cerrados, que ya devolvieron su stock.
@@ -53,14 +55,14 @@ export default async function Transferencias({ searchParams }: { searchParams: P
   const etiqueta = (u: (typeof lista)[number]) => `${u.nombre} (${TIPO_UBICACION[u.tipo]})`;
 
   return (
-    <div className="flex flex-col gap-6">
-      <h1 className="text-3xl font-black">Transferencias</h1>
-      <p className="max-w-3xl">
-        Para mover mercadería entre depósito, showroom y eventos: reponer el showroom, mandar refuerzos a un evento o pasar stock de un
-        equipo a otro. Si al origen le falta algo, no se mueve nada y te dice qué bajar.
-      </p>
+    <>
+      <EncabezadoDePagina
+        titulo="Transferencias"
+        descripcion="Mover mercadería entre depósito, showroom y eventos: reponer el showroom, mandar refuerzos a un evento o pasar stock de un equipo a otro. Si al origen le falta algo, no se mueve nada y te dice qué bajar."
+        acciones={<EnlaceBoton href="/panel/movimientos?tipo=transferencia">Ver todas en Movimientos</EnlaceBoton>}
+      />
 
-      <form className="grid gap-3 rounded-lg border-2 border-black p-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+      <form className="grid gap-3 rounded-xl border-2 border-black bg-white p-4 md:grid-cols-[1fr_auto_1fr_auto] md:items-end">
         <Selector etiqueta="Sale de" name="origen" defaultValue={elegidoOrigen?.id ?? ""} required>
           <option value="" disabled>
             Elegí el origen
@@ -71,6 +73,9 @@ export default async function Transferencias({ searchParams }: { searchParams: P
             </option>
           ))}
         </Selector>
+        <span aria-hidden className="hidden pb-3 text-2xl font-black md:block">
+          →
+        </span>
         <Selector etiqueta="Va a" name="destino" defaultValue={elegidoDestino?.id ?? ""} required>
           <option value="" disabled>
             Elegí el destino
@@ -91,49 +96,50 @@ export default async function Transferencias({ searchParams }: { searchParams: P
         (disponibles.length === 0 ? (
           <Vacio titulo={`No hay stock en ${elegidoOrigen.nombre}`}>Elegí otro origen o ingresá mercadería desde Catálogo.</Vacio>
         ) : (
-          <ElegirStock
-            key={`${elegidoOrigen.id}-${elegidoDestino.id}`}
-            disponibles={disponibles}
-            mover={transferirAccion.bind(null, elegidoOrigen.id, elegidoDestino.id)}
-            destino={elegidoDestino.nombre}
-          />
+          <Tarjeta titulo={`De ${elegidoOrigen.nombre} a ${elegidoDestino.nombre}`}>
+            <ElegirStock
+              key={`${elegidoOrigen.id}-${elegidoDestino.id}`}
+              disponibles={disponibles}
+              mover={transferirAccion.bind(null, elegidoOrigen.id, elegidoDestino.id)}
+              destino={elegidoDestino.nombre}
+            />
+          </Tarjeta>
         ))}
 
-      <section className="flex flex-col gap-3">
-        <h2 className="text-2xl font-black">Últimas transferencias</h2>
+      <Tarjeta titulo="Últimas transferencias">
         {ultimas.length === 0 ? (
           <Vacio titulo="Todavía no hubo transferencias">Elegí origen y destino arriba para hacer la primera.</Vacio>
         ) : (
-          <div className="overflow-x-auto rounded-lg border-2 border-black">
-            <table className="w-full border-collapse text-left text-sm">
-              <thead className="bg-neutral-100">
+          <ContenedorTabla>
+            <table className="tabla">
+              <thead>
                 <tr>
-                  <th className="p-2">Cuándo</th>
-                  <th className="p-2">Producto</th>
-                  <th className="p-2 text-right">Unidades</th>
-                  <th className="p-2">De</th>
-                  <th className="p-2">A</th>
-                  <th className="p-2">Motivo</th>
+                  <th>Cuándo</th>
+                  <th>Producto</th>
+                  <th className="numero">Unidades</th>
+                  <th>De</th>
+                  <th>A</th>
+                  <th>Motivo</th>
                 </tr>
               </thead>
               <tbody>
                 {ultimas.map((m) => (
-                  <tr key={m.id} className="border-t border-neutral-300">
-                    <td className="p-2 whitespace-nowrap">{momento(m.ocurridoAt)}</td>
-                    <td className="p-2">
+                  <tr key={m.id}>
+                    <td className="whitespace-nowrap">{momento(m.ocurridoAt)}</td>
+                    <td>
                       <span className="font-bold">{m.producto}</span> {m.talle} {m.color}
                     </td>
-                    <td className="p-2 text-right font-bold tabular-nums">{m.cantidad}</td>
-                    <td className="p-2">{m.origen}</td>
-                    <td className="p-2">{m.destino}</td>
-                    <td className="p-2 text-neutral-700">{m.nota}</td>
+                    <td className="numero font-bold">{m.cantidad}</td>
+                    <td>{m.origen}</td>
+                    <td>{m.destino}</td>
+                    <td className="text-neutral-700">{m.nota}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
+          </ContenedorTabla>
         )}
-      </section>
-    </div>
+      </Tarjeta>
+    </>
   );
 }

@@ -36,6 +36,13 @@
       "when": 1791325014091,
       "tag": "0004_auditoria_inmutable",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791325730496,
+      "tag": "0005_revision_de_ventas",
+      "breakpoints": true
     }
   ]
 }

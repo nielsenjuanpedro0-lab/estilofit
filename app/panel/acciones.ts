@@ -26,7 +26,8 @@ import { abrirEvento, crearEvento } from "@/servidor/eventos";
 import { recalcularStock, verificarStock } from "@/servidor/libro-mayor";
 import { COOKIE_SESION } from "@/servidor/sesion-panel";
 import { transferir } from "@/servidor/transferencias";
-import { registrarAuditoria } from "@/servidor/usuarios";
+import { marcarRevisada } from "@/servidor/ventas";
+import { registrarAuditoria } from "@/servidor/auditoria";
 
 // Todo lo que llega acá viene de un formulario o de un POST que cualquiera puede armar: se exige
 // sesión y permiso del rol, se valida con Zod, y cada cambio queda en la auditoría con su autor.
@@ -184,6 +185,19 @@ export async function cerrarEventoAccion(datos: unknown): Promise<{ error: strin
   );
   revalidatePath("/panel", "layout");
   redirect(`/panel/eventos/${cierre.data.eventoId}`);
+}
+
+// --- Ventas ---
+
+// Una venta para revisar ya entró (la plata se cobró). Revisarla es dejar asentado qué se concluyó.
+export async function marcarRevisadaAccion(ventaId: number, _previo: EstadoFormulario, formulario: FormData): Promise<EstadoFormulario> {
+  const yo = await exigirPermiso("operar");
+  const nota = texto("Contá qué se concluyó, por ejemplo “redondeo acordado con el cliente”").safeParse(formulario.get("nota"));
+  if (!nota.success) return { error: primerError(nota.error) };
+  if (!(await marcarRevisada(id.parse(ventaId), yo.id, nota.data))) return { error: "Esa venta no está pendiente de revisión: alguien ya la revisó." };
+  await registrarAuditoria(yo.id, "Ventas", `Revisó la venta #${ventaId}: ${nota.data}`);
+  revalidatePath("/panel", "layout");
+  return { exito: "Venta marcada como revisada" };
 }
 
 // --- Libro mayor ---

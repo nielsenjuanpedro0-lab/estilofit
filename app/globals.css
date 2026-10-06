@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* Solo modo claro: se usa a pleno sol, una interfaz oscura ahí no se lee. */
+/* Solo modo claro: se usa a pleno sol y en el depósito; una interfaz oscura ahí no se lee. */
 :root {
   color-scheme: light;
 }
@@ -8,4 +8,26 @@
 body {
   background: #ffffff;
   color: #000000;
+}
+
+/* Tablas del panel: densas para trabajar en escritorio, con contraste alto y filas fáciles de seguir. */
+@layer components {
+  .tabla {
+    @apply w-full border-collapse text-left text-sm;
+  }
+  .tabla thead th {
+    @apply sticky top-0 z-[1] border-b-2 border-black bg-neutral-100 px-3 py-2 text-xs font-black tracking-wide whitespace-nowrap uppercase;
+  }
+  .tabla tbody td {
+    @apply border-b border-neutral-200 px-3 py-2 align-middle;
+  }
+  .tabla tbody tr:hover td {
+    @apply bg-yellow-50;
+  }
+  .tabla tfoot td {
+    @apply border-t-2 border-black px-3 py-2 font-black;
+  }
+  .tabla .numero {
+    @apply text-right tabular-nums;
+  }
 }

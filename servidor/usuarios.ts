@@ -1,7 +1,7 @@
 import { pbkdf2Sync, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { and, asc, eq, ne, sql } from "drizzle-orm";
 import { db } from "@/db/conexion";
-import { auditoria, usuarios } from "@/db/esquema";
+import { usuarios } from "@/db/esquema";
 import type { Rol } from "@/contrato/permisos";
 
 // --- Claves y PIN ---
@@ -125,8 +125,3 @@ export async function vendedoresHabilitados() {
     .orderBy(asc(usuarios.nombre));
 }
 
-// --- Auditoría ---
-
-export async function registrarAuditoria(usuarioId: number | null, accion: string, detalle: string) {
-  await db().insert(auditoria).values({ usuarioId, accion, detalle });
-}

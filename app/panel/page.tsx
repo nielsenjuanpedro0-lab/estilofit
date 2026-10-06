@@ -1,138 +1,204 @@
-import { and, asc, eq, ilike, inArray, isNull, ne, or, type SQL } from "drizzle-orm";
+import Link from "next/link";
+import { desc, eq } from "drizzle-orm";
 import { db } from "@/db/conexion";
-import { eventos, productos, stockActual, ubicaciones, variantes } from "@/db/esquema";
-import { recalcularStockAccion, verificarStockAccion } from "@/app/panel/acciones";
-import { Boton, BotonEnviar, Campo, Formulario, Selector, Vacio } from "@/componentes/primitivos";
+import { auditoria, usuarios } from "@/db/esquema";
+import { ESTADO_EVENTO, momento, pesos, rangoDeFechas } from "@/componentes/formato";
+import { Aviso, ContenedorTabla, EncabezadoDePagina, EnlaceBoton, Indicador, Insignia, Tarjeta, Vacio } from "@/componentes/primitivos";
+import { puede } from "@/contrato/permisos";
+import { paginaConPermiso } from "@/servidor/acceso";
+import { datosDelTablero } from "@/servidor/tablero";
 
-type Filtros = { q?: string; categoria?: string };
-
-export default async function StockPorUbicacion({ searchParams }: { searchParams: Promise<Filtros> }) {
-  const { q = "", categoria = "" } = await searchParams;
-
-  // Columnas: todas las ubicaciones activas menos los eventos ya cerrados, que quedaron en cero.
-  const columnas = await db()
-    .select({ id: ubicaciones.id, nombre: ubicaciones.nombre, tipo: ubicaciones.tipo })
-    .from(ubicaciones)
-    .leftJoin(eventos, eq(eventos.ubicacionId, ubicaciones.id))
-    .where(and(eq(ubicaciones.activa, true), or(isNull(eventos.id), ne(eventos.estado, "cerrado"))))
-    .orderBy(asc(ubicaciones.id));
-
-  const condiciones: SQL[] = [];
-  if (q.trim()) {
-    const patron = `%${q.trim()}%`;
-    const coincide = or(ilike(productos.nombre, patron), ilike(productos.marca, patron), ilike(variantes.sku, patron));
-    if (coincide) condiciones.push(coincide);
-  }
-  if (categoria) condiciones.push(eq(productos.categoria, categoria));
-
-  const filas = await db()
-    .select({
-      id: variantes.id,
-      sku: variantes.sku,
-      talle: variantes.talle,
-      color: variantes.color,
-      activo: variantes.activo,
-      producto: productos.nombre,
-      marca: productos.marca,
-    })
-    .from(variantes)
-    .innerJoin(productos, eq(productos.id, variantes.productoId))
-    .where(and(...condiciones))
-    .orderBy(asc(productos.categoria), asc(productos.id), asc(variantes.id));
-
-  const stock =
-    filas.length === 0 || columnas.length === 0
-      ? []
-      : await db()
-          .select()
-          .from(stockActual)
-          .where(and(inArray(stockActual.ubicacionId, columnas.map((c) => c.id)), inArray(stockActual.varianteId, filas.map((f) => f.id))));
-  const cantidad = new Map(stock.map((s) => [`${s.varianteId}-${s.ubicacionId}`, s.cantidad]));
-
-  const categorias = await db().selectDistinct({ categoria: productos.categoria }).from(productos).orderBy(asc(productos.categoria));
+export default async function Inicio({ searchParams }: { searchParams: Promise<{ aviso?: string }> }) {
+  const yo = await paginaConPermiso("ver");
+  const { aviso } = await searchParams;
+  const d = await datosDelTablero();
+  const actividad = puede(yo.rol, "administrar")
+    ? await db()
+        .select({ id: auditoria.id, ocurridoAt: auditoria.ocurridoAt, accion: auditoria.accion, detalle: auditoria.detalle, usuario: usuarios.nombre })
+        .from(auditoria)
+        .leftJoin(usuarios, eq(usuarios.id, auditoria.usuarioId))
+        .orderBy(desc(auditoria.id))
+        .limit(8)
+    : [];
+  const ticket = d.periodo.ventas > 0 ? d.periodo.facturado / d.periodo.ventas : 0;
 
   return (
-    <div className="flex flex-col gap-4">
-      <h1 className="text-3xl font-black">Stock por ubicación</h1>
+    <>
+      <EncabezadoDePagina
+        titulo={`Hola, ${yo.nombre.split(" ")[0]}`}
+        descripcion={`Así vienen los últimos ${d.dias} días y lo que hay para mirar hoy.`}
+        acciones={
+          puede(yo.rol, "operar") && (
+            <>
+              <EnlaceBoton href="/panel/eventos" variante="destacado">
+                + Nuevo evento
+              </EnlaceBoton>
+              <EnlaceBoton href="/panel/transferencias">Transferir stock</EnlaceBoton>
+            </>
+          )
+        }
+      />
+      {aviso === "sin-permiso" && <Aviso tono="atencion">Tu rol no tiene acceso a esa sección. Si la necesitás, pedíselo a un administrador.</Aviso>}
 
-      <form className="grid gap-3 sm:grid-cols-[1fr_16rem_auto] sm:items-end">
-        <Campo etiqueta="Producto, marca o SKU" name="q" defaultValue={q} placeholder="Ej: medias, Salomon, 1203" />
-        <Selector etiqueta="Categoría" name="categoria" defaultValue={categoria}>
-          <option value="">Todas</option>
-          {categorias.map((c) => (
-            <option key={c.categoria}>{c.categoria}</option>
-          ))}
-        </Selector>
-        <Boton type="submit">Filtrar</Boton>
-      </form>
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <Indicador titulo={`Facturado · ${d.dias} días`} valor={pesos(d.periodo.facturado)} detalle={`${d.periodo.ventas} ventas · ticket ${pesos(ticket)}`} href="/panel/ventas" />
+        <Indicador titulo={`Unidades · ${d.dias} días`} valor={d.periodo.unidades.toLocaleString("es-AR")} detalle="Vendidas en eventos" href="/panel/reportes" />
+        <Indicador
+          titulo="Para revisar"
+          valor={d.paraRevisar}
+          tono={d.paraRevisar > 0 ? "alerta" : "bueno"}
+          detalle={d.paraRevisar > 0 ? "Ventas aceptadas que piden una mirada" : "Nada pendiente"}
+          href="/panel/ventas?estado=revisar"
+        />
+        <Indicador
+          titulo="Stock en depósito y showroom"
+          valor={d.stock.unidades.toLocaleString("es-AR")}
+          detalle={`${pesos(d.stock.valor)} a precio de lista`}
+          href="/panel/stock"
+        />
+      </div>
 
-      <details className="rounded-lg border-2 border-neutral-400 p-3">
-        <summary className="flex min-h-12 cursor-pointer items-center font-bold">¿El stock no cuadra? Verificalo contra los movimientos</summary>
-        <p className="my-2 text-sm">
-          El stock de cada ubicación es la suma de sus movimientos. Esta pantalla lee una copia para ser rápida; si alguna vez no coincide,
-          se reconstruye desde los movimientos, que nunca se borran ni se editan.
-        </p>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Formulario accion={verificarStockAccion}>
-            <BotonEnviar variante="secundario">Verificar</BotonEnviar>
-          </Formulario>
-          <Formulario accion={recalcularStockAccion}>
-            <BotonEnviar variante="secundario">Recalcular desde los movimientos</BotonEnviar>
-          </Formulario>
-        </div>
-      </details>
-
-      {filas.length === 0 ? (
-        <Vacio titulo="No hay productos que coincidan">Probá con otra palabra o elegí “Todas” en categoría.</Vacio>
-      ) : (
-        <div className="overflow-x-auto rounded-lg border-2 border-black">
-          <table className="w-full border-collapse text-left text-sm">
-            <thead className="bg-neutral-100">
-              <tr>
-                <th className="p-2">Producto</th>
-                <th className="p-2">Talle</th>
-                <th className="p-2">Color</th>
-                <th className="p-2">SKU</th>
-                {columnas.map((c) => (
-                  <th key={c.id} className="p-2 text-right">
-                    {c.nombre}
-                  </th>
-                ))}
-                <th className="p-2 text-right">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filas.map((f) => {
-                const valores = columnas.map((c) => cantidad.get(`${f.id}-${c.id}`) ?? 0);
-                return (
-                  <tr key={f.id} className={`border-t border-neutral-300 ${f.activo ? "" : "text-neutral-500"}`}>
-                    <td className="p-2">
-                      <span className="font-bold">{f.producto}</span> <span className="text-neutral-600">{f.marca}</span>
-                      {!f.activo && <span className="ml-2 text-xs font-bold uppercase">inactiva</span>}
-                    </td>
-                    <td className="p-2">{f.talle}</td>
-                    <td className="p-2">{f.color}</td>
-                    <td className="p-2 font-mono">{f.sku}</td>
-                    {valores.map((v, i) => (
-                      <td key={columnas[i]?.id} className={`p-2 text-right tabular-nums ${claseCantidad(v)}`}>
-                        {v}
-                      </td>
-                    ))}
-                    <td className="p-2 text-right font-bold tabular-nums">{valores.reduce((a, b) => a + b, 0)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+      {d.celularesConPendientes.length > 0 && (
+        <Aviso tono="atencion">
+          <p className="font-black">Hay celulares con ventas sin subir</p>
+          <ul className="mt-1 list-disc pl-5">
+            {d.celularesConPendientes.map((c) => (
+              <li key={c.id}>
+                {c.nombre}: {c.pendientes} {c.pendientes === 1 ? "venta" : "ventas"}
+                {c.informadoAt ? ` (informado ${momento(c.informadoAt)})` : ""}. Se suben solas cuando el celular tenga señal.
+              </li>
+            ))}
+          </ul>
+        </Aviso>
       )}
-    </div>
-  );
-}
 
-// Negativo: dos celulares vendieron la misma unidad. Se resuelve en el cierre del evento.
-function claseCantidad(valor: number) {
-  if (valor < 0) return "font-black text-red-700";
-  if (valor === 0) return "text-neutral-400";
-  return "";
+      <div className="grid gap-6 xl:grid-cols-[2fr_1fr]">
+        <Tarjeta
+          titulo="Eventos en curso"
+          descripcion="En preparación o abiertos"
+          acciones={
+            <Link href="/panel/eventos" className="text-sm font-bold underline">
+              Ver todos
+            </Link>
+          }
+        >
+          {d.enCurso.length === 0 ? (
+            <Vacio titulo="No hay eventos en curso">Creá el próximo evento y cargale el viaje desde el depósito.</Vacio>
+          ) : (
+            <ContenedorTabla>
+              <table className="tabla">
+                <thead>
+                  <tr>
+                    <th>Evento</th>
+                    <th>Estado</th>
+                    <th className="numero">En el evento</th>
+                    <th className="numero">Vendidas</th>
+                    <th className="numero">Facturado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {d.enCurso.map((e) => (
+                    <tr key={e.id}>
+                      <td>
+                        <Link href={`/panel/eventos/${e.id}`} className="font-bold underline">
+                          {e.nombre}
+                        </Link>
+                        <div className="text-xs text-neutral-600">{rangoDeFechas(e.fechaDesde, e.fechaHasta)}</div>
+                      </td>
+                      <td>
+                        <Insignia tono={e.estado === "abierto" ? "bueno" : "alerta"}>{ESTADO_EVENTO[e.estado]}</Insignia>
+                      </td>
+                      <td className="numero">{e.llevadas - e.vendidas - e.devueltas}</td>
+                      <td className="numero">{e.vendidas}</td>
+                      <td className="numero">{pesos(e.facturado)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </ContenedorTabla>
+          )}
+        </Tarjeta>
+
+        <Tarjeta titulo="Lo más vendido" descripcion={`Últimos ${d.dias} días`}>
+          {d.masVendidos.length === 0 ? (
+            <p className="text-neutral-700">Sin ventas en el período.</p>
+          ) : (
+            <ol className="flex flex-col gap-2">
+              {d.masVendidos.map((p, i) => (
+                <li key={p.productoId} className="flex items-center gap-3">
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-black font-black text-yellow-300">{i + 1}</span>
+                  <Link href={`/panel/catalogo/${p.productoId}`} className="min-w-0 flex-1 truncate font-bold hover:underline">
+                    {p.producto}
+                  </Link>
+                  <span className="font-black tabular-nums">{p.unidades} u.</span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </Tarjeta>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <Tarjeta titulo="Stock bajo" descripcion={`Variantes con ${d.umbralStockBajo} o menos entre depósito y showroom`}>
+          {d.stockBajo.length === 0 ? (
+            <p className="text-neutral-700">Todo el catálogo activo tiene más de {d.umbralStockBajo} unidades.</p>
+          ) : (
+            <ContenedorTabla>
+              <table className="tabla">
+                <thead>
+                  <tr>
+                    <th>Producto</th>
+                    <th>Talle</th>
+                    <th>SKU</th>
+                    <th className="numero">Quedan</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {d.stockBajo.map((v) => (
+                    <tr key={v.varianteId}>
+                      <td>
+                        <Link href={`/panel/catalogo/${v.productoId}`} className="font-bold hover:underline">
+                          {v.producto}
+                        </Link>{" "}
+                        <span className="text-neutral-600">{v.color}</span>
+                      </td>
+                      <td className="font-bold">{v.talle}</td>
+                      <td className="font-mono">{v.sku}</td>
+                      <td className={`numero font-black ${v.cantidad <= 0 ? "text-red-700" : ""}`}>{v.cantidad}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </ContenedorTabla>
+          )}
+        </Tarjeta>
+
+        {puede(yo.rol, "administrar") && (
+          <Tarjeta
+            titulo="Actividad reciente"
+            acciones={
+              <Link href="/panel/auditoria" className="text-sm font-bold underline">
+                Ver auditoría
+              </Link>
+            }
+          >
+            {actividad.length === 0 ? (
+              <p className="text-neutral-700">Todavía no hay actividad registrada.</p>
+            ) : (
+              <ul className="flex flex-col divide-y divide-neutral-200">
+                {actividad.map((a) => (
+                  <li key={a.id} className="py-2">
+                    <p className="text-sm">
+                      <span className="font-black">{a.usuario ?? "Sistema"}</span> · <span className="text-neutral-600">{momento(a.ocurridoAt)}</span>
+                    </p>
+                    <p className="text-sm">{a.detalle}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Tarjeta>
+        )}
+      </div>
+    </>
+  );
 }

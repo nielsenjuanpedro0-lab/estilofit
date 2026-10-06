@@ -4,7 +4,8 @@ import { z } from "zod";
 import { Aviso, Boton, Campo } from "@/componentes/primitivos";
 import { ingresoBloqueado, registrarIngresoFallido } from "@/servidor/limite-velocidad";
 import { COOKIE_SESION, DURACION_SESION_S, claveDeInstalacionCorrecta, crearValorDeSesion } from "@/servidor/sesion-panel";
-import { CLAVE_MINIMA, autenticarConClave, crearUsuario, hayUsuarios, registrarAuditoria } from "@/servidor/usuarios";
+import { CLAVE_MINIMA, autenticarConClave, crearUsuario, hayUsuarios } from "@/servidor/usuarios";
+import { registrarAuditoria } from "@/servidor/auditoria";
 
 async function abrirSesion(usuario: { id: number; versionSesion: number }) {
   (await cookies()).set(COOKIE_SESION, await crearValorDeSesion(usuario.id, usuario.versionSesion), {

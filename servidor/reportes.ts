@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, gte, ilike, lte, or, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db/conexion";
-import { eventos, productos, stockActual, ubicaciones, variantes, ventaItems, ventas } from "@/db/esquema";
+import { eventos, productos, stockActual, ubicaciones, usuarios, variantes, ventaItems, ventas } from "@/db/esquema";
 
 // El período se aplica sobre la fecha del evento y no sobre la hora de la venta: el reloj del
 // celular puede estar corrido y recibido_at cae el lunes si la venta subió tarde. En Fase 1 toda
@@ -53,6 +53,34 @@ export async function rankingDeTallesPorCategoria(filtro: Filtro) {
   const porCategoria = new Map<string, { talle: string; unidades: number }[]>();
   for (const f of filas) porCategoria.set(f.categoria, [...(porCategoria.get(f.categoria) ?? []), { talle: f.talle, unidades: f.unidades }]);
   return [...porCategoria].map(([categoria, talles]) => ({ categoria, talles, total: talles.reduce((s, t) => s + t.unidades, 0) }));
+}
+
+// Ranking por vendedor: quién vendió cuánto con su PIN en el celular. Ventas y plata se cuentan
+// sobre ventas; unidades, sobre renglones. En dos consultas para no multiplicar el total por renglón.
+export async function rankingDeVendedores(filtro: Filtro) {
+  const porVentas = await db()
+    .select({
+      usuarioId: ventas.usuarioId,
+      vendedor: usuarios.nombre,
+      ventas: sql`count(*)`.mapWith(Number),
+      facturado: sql`coalesce(sum(${ventas.total}), 0)`.mapWith(Number),
+    })
+    .from(ventas)
+    .innerJoin(eventos, eq(eventos.id, ventas.eventoId))
+    .leftJoin(usuarios, eq(usuarios.id, ventas.usuarioId))
+    .where(ventasFiltradas(filtro))
+    .groupBy(ventas.usuarioId, usuarios.nombre);
+  const porUnidades = await db()
+    .select({ usuarioId: ventas.usuarioId, unidades })
+    .from(ventaItems)
+    .innerJoin(ventas, eq(ventas.id, ventaItems.ventaId))
+    .innerJoin(eventos, eq(eventos.id, ventas.eventoId))
+    .where(ventasFiltradas(filtro))
+    .groupBy(ventas.usuarioId);
+  const unidadesDe = new Map(porUnidades.map((u) => [u.usuarioId, u.unidades]));
+  return porVentas
+    .map((v) => ({ ...v, unidades: unidadesDe.get(v.usuarioId) ?? 0, ticket: v.ventas > 0 ? v.facturado / v.ventas : 0 }))
+    .sort((a, b) => b.facturado - a.facturado);
 }
 
 // Stock actual por ubicación, a precio de lista, con filtro por producto, marca o SKU.

@@ -1,11 +1,11 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { ConteoDeCierre } from "@/app/panel/eventos/[id]/cierre/conteo-de-cierre";
 import { db } from "@/db/conexion";
 import { ubicaciones } from "@/db/esquema";
 import { momento, rangoDeFechas } from "@/componentes/formato";
-import { Aviso, Vacio } from "@/componentes/primitivos";
+import { Aviso, EncabezadoDePagina, Vacio } from "@/componentes/primitivos";
+import { paginaConPermiso } from "@/servidor/acceso";
 import { datosParaCierre } from "@/servidor/cierre";
 
 type Celular = NonNullable<Awaited<ReturnType<typeof datosParaCierre>>>["celulares"][number];
@@ -42,6 +42,7 @@ function AvisoDeCelular({ celular }: { celular: Celular }) {
 }
 
 export default async function CierreDeEvento({ params }: { params: Promise<{ id: string }> }) {
+  await paginaConPermiso("operar");
   const id = Number((await params).id);
   if (!Number.isInteger(id)) notFound();
   const datos = await datosParaCierre(id);
@@ -55,21 +56,26 @@ export default async function CierreDeEvento({ params }: { params: Promise<{ id:
     .orderBy(asc(ubicaciones.id));
 
   return (
-    <div className="flex flex-col gap-5">
-      <div>
-        <Link href={`/panel/eventos/${id}`} className="text-sm underline">
-          ← {datos.evento.nombre}
-        </Link>
-        <h1 className="text-4xl font-black">Cierre de evento</h1>
-        <p className="text-lg">
-          {datos.evento.nombre} · {datos.evento.lugar} · {rangoDeFechas(datos.evento.fechaDesde, datos.evento.fechaHasta)}
-        </p>
-      </div>
-
-      <p className="max-w-3xl text-lg">
-        Contá cuántas unidades volvieron de cada variante. El sistema las compara contra lo esperado (lo que salió menos lo vendido) y marca
-        cada diferencia. Al confirmar, las diferencias quedan asentadas con fecha y el remanente vuelve al depósito. Nada se borra ni se pisa.
-      </p>
+    <>
+      <EncabezadoDePagina
+        migas={[
+          { href: "/panel/eventos", nombre: "Eventos" },
+          { href: `/panel/eventos/${id}`, nombre: datos.evento.nombre },
+        ]}
+        titulo="Cierre de evento"
+        descripcion={
+          <>
+            <p className="font-bold">
+              {datos.evento.nombre} · {datos.evento.lugar} · {rangoDeFechas(datos.evento.fechaDesde, datos.evento.fechaHasta)}
+            </p>
+            <p>
+              Contá cuántas unidades volvieron de cada variante. El sistema las compara contra lo esperado (lo que salió menos lo vendido) y
+              marca cada diferencia. Al confirmar, las diferencias quedan asentadas con fecha y el remanente vuelve al depósito. Nada se borra
+              ni se pisa.
+            </p>
+          </>
+        }
+      />
 
       {datos.celulares.length > 0 && (
         <section className="flex flex-col gap-2">
@@ -85,6 +91,6 @@ export default async function CierreDeEvento({ params }: { params: Promise<{ id:
       ) : (
         <ConteoDeCierre eventoId={id} filas={datos.filas} destinos={destinos} />
       )}
-    </div>
+    </>
   );
 }

@@ -204,6 +204,10 @@ export const ventas = pgTable(
     anulada: boolean().notNull().default(false),
     paraRevisar: boolean().notNull().default(false),
     motivoRevision: text(),
+    // Alguien la miró y dejó su conclusión. La marca de revisión no se borra: queda el rastro.
+    revisadaAt: timestamp({ withTimezone: true }),
+    revisadaPor: integer().references(() => usuarios.id),
+    notaDeRevision: text(),
   },
   (t) => [index().on(t.eventoId), index().on(t.recibidoAt)],
 );

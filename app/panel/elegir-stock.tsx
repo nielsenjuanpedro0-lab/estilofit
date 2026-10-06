@@ -83,29 +83,29 @@ export function ElegirStock({
         </Selector>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border-2 border-black">
-        <table className="w-full border-collapse text-left text-sm">
-          <thead className="bg-neutral-100">
+      <div className="max-h-[60vh] overflow-auto rounded-xl border-2 border-black bg-white">
+        <table className="tabla">
+          <thead>
             <tr>
-              <th className="p-2">Producto</th>
-              <th className="p-2">Talle</th>
-              <th className="p-2">Color</th>
-              <th className="p-2 text-right">Hay</th>
-              <th className="p-2 text-center">Mover</th>
+              <th>Producto</th>
+              <th>Talle</th>
+              <th>Color</th>
+              <th className="numero">Hay</th>
+              <th className="text-center">Mover</th>
             </tr>
           </thead>
           <tbody>
             {visibles.map((d) => {
               const cantidad = cantidades[d.varianteId] ?? 0;
               return (
-                <tr key={d.varianteId} className={`border-t border-neutral-300 ${cantidad > 0 ? "bg-yellow-50" : ""}`}>
-                  <td className="p-2">
+                <tr key={d.varianteId} className={cantidad > 0 ? "bg-yellow-100" : ""}>
+                  <td>
                     <span className="font-bold">{d.producto}</span> <span className="font-mono text-neutral-600">{d.sku}</span>
                   </td>
-                  <td className="p-2 font-bold">{d.talle}</td>
-                  <td className="p-2">{d.color}</td>
-                  <td className="p-2 text-right tabular-nums">{d.disponible}</td>
-                  <td className="p-2">
+                  <td className="font-bold">{d.talle}</td>
+                  <td>{d.color}</td>
+                  <td className="numero">{d.disponible}</td>
+                  <td>
                     <div className="flex items-center justify-center gap-1">
                       <Boton variante="secundario" className="w-12 px-0" onClick={() => fijar(d.varianteId, cantidad - 1, d.disponible)} aria-label="Uno menos">
                         −
