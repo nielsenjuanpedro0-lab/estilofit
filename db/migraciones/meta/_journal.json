@@ -22,6 +22,20 @@
       "when": 1790978308277,
       "tag": "0002_dispositivo_en_evento",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791325004409,
+      "tag": "0003_usuarios_y_auditoria",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791325014091,
+      "tag": "0004_auditoria_inmutable",
+      "breakpoints": true
     }
   ]
 }

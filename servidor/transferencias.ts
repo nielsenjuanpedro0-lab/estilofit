@@ -32,8 +32,9 @@ export async function transferir(datos: {
   destinoId: number;
   items: { varianteId: number; cantidad: number }[];
   nota?: string;
+  usuarioId?: number | null;
 }): Promise<ResultadoTransferencia> {
-  const { origenId, destinoId, items, nota } = datos;
+  const { origenId, destinoId, items, nota, usuarioId = null } = datos;
   return db().transaction(async (tx) => {
     const ids = items.map((item) => item.varianteId);
     // FOR UPDATE: dos transferencias simultáneas desde el mismo origen no pueden validar las dos
@@ -60,6 +61,7 @@ export async function transferir(datos: {
         tipo: "transferencia" as const,
         ocurridoAt: ahora,
         nota,
+        usuarioId,
       })),
     );
     return { ok: true };

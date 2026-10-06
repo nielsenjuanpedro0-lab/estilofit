@@ -7,6 +7,7 @@ export default defineConfig({
   },
   test: {
     include: ["verificacion/**/*.test.ts"],
+    setupFiles: ["verificacion/entorno.ts"],
     environment: "node",
     // Levantar Postgres en WASM y migrar tarda un par de segundos por base.
     testTimeout: 30_000,

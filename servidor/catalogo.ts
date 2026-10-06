@@ -49,10 +49,14 @@ export async function actualizarProducto(id: number, cambios: { activo: boolean 
 }
 
 // Mercadería que entra al negocio: es el único movimiento sin origen.
-export async function registrarIngreso(ubicacionId: number, items: { varianteId: number; cantidad: number }[], ocurridoAt = new Date()) {
+export async function registrarIngreso(
+  ubicacionId: number,
+  items: { varianteId: number; cantidad: number }[],
+  { ocurridoAt = new Date(), usuarioId = null }: { ocurridoAt?: Date; usuarioId?: number | null } = {},
+) {
   await db()
     .insert(movimientos)
-    .values(items.map((item) => ({ ...item, ubicacionDestinoId: ubicacionId, tipo: "carga_inicial" as const, ocurridoAt })));
+    .values(items.map((item) => ({ ...item, ubicacionDestinoId: ubicacionId, tipo: "carga_inicial" as const, ocurridoAt, usuarioId })));
 }
 
 // Las ubicaciones de tipo evento se crean solas con cada evento.

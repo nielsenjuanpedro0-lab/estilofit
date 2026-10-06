@@ -82,7 +82,7 @@ export type Conteo = { varianteId: number; contadas: number; faltanteEs?: ClaseD
 // Si dos celulares vendieron la última unidad, lo esperado es negativo y el conteo lo corrige.
 // La diferencia no pisa nada: queda asentada como movimiento de ajuste con fecha, y el remanente
 // contado vuelve como transferencia. Al terminar, la ubicación del evento queda en cero.
-export async function cerrarEvento(eventoId: number, conteo: Conteo[], destinoId: number): Promise<ResultadoCierre> {
+export async function cerrarEvento(eventoId: number, conteo: Conteo[], destinoId: number, usuarioId: number | null = null): Promise<ResultadoCierre> {
   return db().transaction(async (tx) => {
     // FOR UPDATE: dos cierres simultáneos del mismo evento se ordenan y el segundo ve "cerrado".
     const [evento] = await tx.select().from(eventos).where(eq(eventos.id, eventoId)).for("update");
@@ -121,6 +121,7 @@ export async function cerrarEvento(eventoId: number, conteo: Conteo[], destinoId
           // Faltante real es merma; una venta cobrada y no cargada es un ajuste.
           tipo: ventaNoRegistrada ? "ajuste" : "merma",
           refId: evento.id,
+          usuarioId,
           ocurridoAt: ahora,
           nota: `Cierre: ${ventaNoRegistrada ? "venta no registrada" : "faltante real"}. Esperadas ${f.esperadas}, contadas ${f.contadas}`,
         });
@@ -132,6 +133,7 @@ export async function cerrarEvento(eventoId: number, conteo: Conteo[], destinoId
           cantidad: f.diferencia,
           tipo: "ajuste",
           refId: evento.id,
+          usuarioId,
           ocurridoAt: ahora,
           nota: `Cierre: sobrante. Esperadas ${f.esperadas}, contadas ${f.contadas}`,
         });
@@ -144,6 +146,7 @@ export async function cerrarEvento(eventoId: number, conteo: Conteo[], destinoId
           cantidad: f.contadas,
           tipo: "transferencia",
           refId: evento.id,
+          usuarioId,
           ocurridoAt: ahora,
           nota: "Cierre: vuelve el remanente",
         });

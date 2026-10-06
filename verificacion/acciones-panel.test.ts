@@ -27,10 +27,15 @@ type Escenario = Awaited<ReturnType<typeof prepararEscenario>>;
 let e: Escenario;
 let showroom: number;
 
+// Abre la sesión de un usuario de la semilla, como si hubiera ingresado.
+async function entrarComo(email: string) {
+  const u = await e.b.consultarUno<{ id: number; version: number }>("select id, version_sesion as version from usuarios where email = $1", [email]);
+  cookie.valor = await crearValorDeSesion(u.id, u.version);
+}
+
 beforeEach(async () => {
-  process.env.SECRETO_SESION = "secreto-de-prueba-de-al-menos-32-caracteres";
-  cookie.valor = await crearValorDeSesion();
   e = await prepararEscenario();
+  await entrarComo("martin@estilofit.com.ar");
   ({ id: showroom } = await e.b.consultarUno<{ id: number }>("select id from ubicaciones where nombre = 'Showroom Tandil'"));
 });
 afterEach(async () => {
@@ -115,6 +120,42 @@ describe("transferencias desde el panel", () => {
     cookie.valor = undefined;
     const v = e.llevadas[0];
     if (!v) throw new Error("Escenario incompleto");
-    await expect(transferirAccion(e.deposito.id, showroom, [{ varianteId: v.id, cantidad: 1 }])).rejects.toThrow(/sesión del panel venció/);
+    await expect(transferirAccion(e.deposito.id, showroom, [{ varianteId: v.id, cantidad: 1 }])).rejects.toThrow(/sesión venció/);
+  });
+});
+
+describe("roles y auditoría", () => {
+  it("consulta no puede mover stock y encargado no puede reconstruir el stock", async () => {
+    const v = e.llevadas[0];
+    if (!v) throw new Error("Escenario incompleto");
+    await entrarComo("silvia@estilofit.com.ar");
+    await expect(transferirAccion(e.deposito.id, showroom, [{ varianteId: v.id, cantidad: 1 }])).rejects.toThrow(/rol Consulta no se puede mover stock/);
+    expect(await verificarStockAccion()).toMatchObject({ exito: expect.any(String) });
+
+    await entrarComo("lucia@estilofit.com.ar");
+    await expect(recalcularStockAccion()).rejects.toThrow(/rol Encargado no se puede administrar/);
+  });
+
+  it("cada cambio queda en la auditoría con su autor, y el movimiento firmado", async () => {
+    const v = e.llevadas[3];
+    if (!v) throw new Error("Escenario incompleto");
+    await entrarComo("lucia@estilofit.com.ar");
+    await transferirAccion(e.deposito.id, showroom, [{ varianteId: v.id, cantidad: 1 }]);
+
+    const registro = await e.b.consultarUno<{ quien: string; accion: string; detalle: string }>(
+      "select u.nombre as quien, a.accion, a.detalle from auditoria a join usuarios u on u.id = a.usuario_id order by a.id desc limit 1",
+    );
+    expect(registro).toEqual({ quien: "Lucía Fernández", accion: "Stock", detalle: "Transferencia de Depósito a Showroom Tandil: 1 unidades en 1 variantes" });
+    const { quien } = await e.b.consultarUno<{ quien: string }>(
+      "select u.nombre as quien from movimientos m join usuarios u on u.id = m.usuario_id order by m.id desc limit 1",
+    );
+    expect(quien).toBe("Lucía Fernández");
+  });
+
+  it("la auditoría no se puede editar ni borrar", async () => {
+    // Con la tabla vacía el trigger por fila no se dispararía y el test pasaría sin probar nada.
+    await e.b.consultar("insert into auditoria (accion, detalle) values ('Prueba', 'algo que pasó')");
+    await expect(e.b.consultar("update auditoria set detalle = 'otra cosa'")).rejects.toThrow(/no se modifica ni se borra/);
+    await expect(e.b.consultar("delete from auditoria")).rejects.toThrow(/no se modifica ni se borra/);
   });
 });

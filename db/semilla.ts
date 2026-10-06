@@ -7,6 +7,7 @@ import { canjearCodigo, crearDispositivo, revocarDispositivo } from "@/servidor/
 import { abrirEvento, crearEvento } from "@/servidor/eventos";
 import { registrarLote } from "@/servidor/sincronizacion";
 import { transferir } from "@/servidor/transferencias";
+import { crearUsuario } from "@/servidor/usuarios";
 
 // La semilla pasa por las mismas funciones que usa la app: catálogo, ingreso, transferencias,
 // sincronización y cierre. Si algo de eso se rompe, la semilla se rompe con eso.
@@ -95,6 +96,19 @@ export async function sembrar() {
   const yaHayDatos = await db().select({ id: productos.id }).from(productos).limit(1);
   if (yaHayDatos.length > 0) throw new Error("La base ya tiene productos: la semilla solo corre sobre una base vacía");
 
+  // Las claves de la demo salen del entorno y no del repo: esta semilla también corre en Supabase.
+  const clave = process.env.CLAVE_DEMO;
+  const pin = process.env.PIN_DEMO;
+  if (!clave || !pin) throw new Error("Faltan CLAVE_DEMO y PIN_DEMO en .env.local: son la clave y el PIN de los usuarios de la demo");
+  const dueno = await crearUsuario({ nombre: "Martín Gómez", email: "martin@estilofit.com.ar", rol: "administrador", clave, pin });
+  await crearUsuario({ nombre: "Lucía Fernández", email: "lucia@estilofit.com.ar", rol: "encargado", clave, pin });
+  await crearUsuario({ nombre: "Silvia Ruiz", email: "silvia@estilofit.com.ar", rol: "consulta", clave, pin: null });
+  const vendedores = [
+    await crearUsuario({ nombre: "Nicolás Pereyra", email: null, rol: "vendedor", clave: null, pin }),
+    await crearUsuario({ nombre: "Agustina Sosa", email: null, rol: "vendedor", clave: null, pin }),
+    await crearUsuario({ nombre: "Florencia Medina", email: null, rol: "vendedor", clave: null, pin }),
+  ];
+
   const deposito = await crearUbicacion("Depósito", "deposito");
   const showroom = await crearUbicacion("Showroom Tandil", "showroom");
   await crearUbicacion("Web", "web");
@@ -129,8 +143,8 @@ export async function sembrar() {
       surtido.push({ varianteId: v.id, precio: v.precio, salida: item.salida, categoria: item.categoria });
     }
   }
-  await registrarIngreso(deposito.id, ingresoDeposito, FECHA_INGRESO);
-  await registrarIngreso(showroom.id, ingresoShowroom, FECHA_INGRESO);
+  await registrarIngreso(deposito.id, ingresoDeposito, { ocurridoAt: FECHA_INGRESO, usuarioId: dueno.id });
+  await registrarIngreso(showroom.id, ingresoShowroom, { ocurridoAt: FECHA_INGRESO, usuarioId: dueno.id });
 
   // Lo que viaja a un evento: más de lo que más sale, sin pasarse de lo que hay en el depósito.
   const armarViaje = () =>
@@ -144,7 +158,7 @@ export async function sembrar() {
   // --- Evento ya cerrado, con ventas: para que los reportes tengan contenido. ---
   const tandil = await crearEvento({ nombre: "Tandil Trail Run", lugar: "Tandil, Sierra del Tigre", fechaDesde: "2026-09-12", fechaHasta: "2026-09-13" });
   const viajeTandil = armarViaje();
-  const transferenciaTandil = await transferir({ origenId: deposito.id, destinoId: tandil.ubicacionId, items: viajeTandil, nota: "Viaje al Tandil Trail Run" });
+  const transferenciaTandil = await transferir({ origenId: deposito.id, destinoId: tandil.ubicacionId, items: viajeTandil, nota: "Viaje al Tandil Trail Run", usuarioId: dueno.id });
   if (!transferenciaTandil.ok) throw new Error("La semilla pidió más stock del que hay en el depósito");
   await abrirEvento(tandil.id);
 
@@ -212,7 +226,7 @@ export async function sembrar() {
     fila.contadas += delta;
     fila.faltanteEs = faltanteEs;
   }
-  const cierre = await cerrarEvento(tandil.id, conteo, deposito.id);
+  const cierre = await cerrarEvento(tandil.id, conteo, deposito.id, dueno.id);
   if (!cierre.ok) throw new Error(`La semilla no pudo cerrar el evento: ${cierre.motivo}`);
   // El celular de ese evento ya no está en uso.
   await revocarDispositivo(celularId);
@@ -229,6 +243,7 @@ export async function sembrar() {
     destinoId: sierra.ubicacionId,
     items: armarViaje().filter((v) => v.cantidad > 0),
     nota: "Viaje al Desafío Sierra de la Ventana",
+    usuarioId: dueno.id,
   });
   if (!transferenciaSierra.ok) throw new Error("La semilla pidió más stock del que hay en el depósito");
   await abrirEvento(sierra.id);

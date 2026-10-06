@@ -32,10 +32,42 @@ export const tipoMovimiento = pgEnum("tipo_movimiento", [
   "merma",
 ]);
 export const medioPago = pgEnum("medio_pago", ["efectivo", "transferencia", "tarjeta"]);
+export const rolUsuario = pgEnum("rol_usuario", ["administrador", "encargado", "vendedor", "consulta"]);
 
 const ahora = () => timestamp({ withTimezone: true }).notNull().defaultNow();
 // mode "number": la plata se maneja como number en TS pero se guarda exacta en numeric.
 const plata = () => numeric({ precision: 12, scale: 2, mode: "number" });
+
+export const usuarios = pgTable("usuarios", {
+  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  nombre: text().notNull(),
+  // Para entrar al panel. Un vendedor que solo vende desde el celular no tiene.
+  email: text().unique(),
+  rol: rolUsuario().notNull(),
+  // scrypt con sal propia. Nunca la clave en claro.
+  claveHash: text(),
+  // PBKDF2 con sal propia: el celular lo verifica sin señal. Un PIN de 4 dígitos identifica a quien
+  // vende, no protege nada: la seguridad del celular es su token.
+  pinHash: text(),
+  activo: boolean().notNull().default(true),
+  // Se incrementa al cambiar la clave o el rol, o al desactivar: invalida las sesiones abiertas.
+  versionSesion: integer().notNull().default(1),
+  creadoAt: ahora(),
+  ultimoIngresoAt: timestamp({ withTimezone: true }),
+});
+
+// Quién hizo qué en el panel. Solo se agrega: no se edita ni se borra.
+export const auditoria = pgTable(
+  "auditoria",
+  {
+    id: bigint({ mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    usuarioId: integer().references(() => usuarios.id),
+    accion: text().notNull(),
+    detalle: text().notNull(),
+    ocurridoAt: ahora(),
+  },
+  (t) => [index().on(t.ocurridoAt), index().on(t.usuarioId)],
+);
 
 export const productos = pgTable("productos", {
   id: integer().primaryKey().generatedAlwaysAsIdentity(),
@@ -130,7 +162,8 @@ export const movimientos = pgTable(
     deviceId: integer().references(() => dispositivos.id),
     ocurridoAt: timestamp({ withTimezone: true }).notNull(),
     recibidoAt: ahora(),
-    usuarioId: integer(),
+    // Quién lo generó: el usuario del panel, o quien vendía en el celular.
+    usuarioId: integer().references(() => usuarios.id),
     nota: text(),
   },
   (t) => [
@@ -164,6 +197,8 @@ export const ventas = pgTable(
     deviceId: integer()
       .notNull()
       .references(() => dispositivos.id),
+    // Quien vendía en el celular. Nulo en ventas de antes de los vendedores o con un vendedor desconocido.
+    usuarioId: integer().references(() => usuarios.id),
     vendidoAt: timestamp({ withTimezone: true }).notNull(),
     recibidoAt: ahora(),
     anulada: boolean().notNull().default(false),
