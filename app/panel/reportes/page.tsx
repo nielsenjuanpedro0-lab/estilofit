@@ -7,6 +7,7 @@ import { resumenDeEventos } from "@/servidor/eventos";
 import {
   eventosParaFiltro,
   filtroDeEventosParaResumen,
+  margenDelPeriodo,
   rankingDeProductos,
   rankingDeTallesPorCategoria,
   rankingDeVendedores,
@@ -36,13 +37,14 @@ export default async function Reportes({ searchParams }: { searchParams: Promise
   const filtro: Filtro = { eventoId: parametros.evento, desde: parametros.desde, hasta: parametros.hasta };
   const texto = parametros.producto ?? "";
 
-  const [opciones, porEvento, ranking, talles, vendedores, stock] = await Promise.all([
+  const [opciones, porEvento, ranking, talles, vendedores, stock, margen] = await Promise.all([
     eventosParaFiltro(),
     resumenDeEventos(filtroDeEventosParaResumen(filtro)),
     rankingDeProductos(filtro),
     rankingDeTallesPorCategoria(filtro),
     rankingDeVendedores(filtro),
     stockPorUbicacion(texto),
+    margenDelPeriodo(filtro),
   ]);
   const conVentas = porEvento.filter((e) => e.ventas > 0);
   const total = conVentas.reduce(
@@ -78,6 +80,17 @@ export default async function Reportes({ searchParams }: { searchParams: Promise
         <Indicador titulo="Ventas" valor={total.ventas.toLocaleString("es-AR")} />
         <Indicador titulo="Facturado" valor={pesos(total.facturado)} />
         <Indicador titulo="Ticket promedio" valor={pesos(total.ventas > 0 ? total.facturado / total.ventas : 0)} detalle={`${total.unidades} unidades`} />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
+        <Indicador titulo="Margen" valor={pesos(margen.margen)} detalle="Precio de lista menos costo de cada venta" tono={margen.margen > 0 ? "bueno" : "neutro"} />
+        <Indicador titulo="Margen %" valor={margen.importeConCosto > 0 ? `${Math.round((margen.margen / margen.importeConCosto) * 100)}%` : "—"} />
+        <Indicador
+          titulo="Sin costo"
+          valor={`${margen.sinCosto} u.`}
+          detalle="Ventas de antes de Compras o de variantes sin costo: no entran al margen"
+          tono={margen.sinCosto > 0 ? "alerta" : "neutro"}
+        />
       </div>
 
       <Tarjeta titulo="Ventas por evento">
@@ -142,7 +155,15 @@ export default async function Reportes({ searchParams }: { searchParams: Promise
                   </Link>
                   <span className="text-right font-black tabular-nums">{p.unidades} u.</span>
                   <Barra valor={p.unidades} maximo={maximoRanking} />
-                  <span className="text-right text-sm tabular-nums">{pesos(p.importe)}</span>
+                  <span className="text-right text-sm tabular-nums">
+                    {pesos(p.importe)}
+                    {p.importeConCosto > 0 && (
+                      <span className="block text-neutral-600">
+                        margen {pesos(p.importeConCosto - p.costo)} · {Math.round(((p.importeConCosto - p.costo) / p.importeConCosto) * 100)}%
+                      </span>
+                    )}
+                    {p.sinCosto > 0 && <span className="block text-amber-800">{p.sinCosto} u. sin costo</span>}
+                  </span>
                 </li>
               ))}
             </ol>

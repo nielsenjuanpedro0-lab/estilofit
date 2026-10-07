@@ -30,6 +30,7 @@ export default async function Producto({ params }: { params: Promise<{ id: strin
       talle: variantes.talle,
       color: variantes.color,
       precio: variantes.precio,
+      costo: variantes.costo,
       activo: variantes.activo,
       // Columna de la variante escrita a mano y calificada: la consulta no tiene JOINs.
       stock: sql`(select coalesce(sum(s.cantidad), 0) from stock_actual s where s.variante_id = "variantes"."id")`.mapWith(Number),
@@ -73,7 +74,7 @@ export default async function Producto({ params }: { params: Promise<{ id: strin
         />
       </div>
 
-      <Tarjeta titulo="Talles y colores" descripcion="Un precio nuevo llega a los celulares cuando actualizan el paquete del evento.">
+      <Tarjeta titulo="Talles y colores" descripcion="Un precio nuevo llega a los celulares cuando actualizan el paquete del evento. El costo lo actualiza cada compra.">
         <ContenedorTabla>
           <table className="tabla">
             <thead>
@@ -82,6 +83,8 @@ export default async function Producto({ params }: { params: Promise<{ id: strin
                 <th>Talle</th>
                 <th>Color</th>
                 <th>Precio</th>
+                <th className="numero">Costo</th>
+                <th className="numero">Margen</th>
                 <th className="numero">Stock</th>
                 <th className="numero">Vendidas</th>
                 <th>Estado</th>
@@ -113,6 +116,10 @@ export default async function Producto({ params }: { params: Promise<{ id: strin
                     ) : (
                       pesos(v.precio)
                     )}
+                  </td>
+                  <td className="numero">{v.costo !== null ? pesos(v.costo) : <span className="text-neutral-500">—</span>}</td>
+                  <td className="numero">
+                    {v.costo !== null && v.precio > 0 ? `${Math.round(((v.precio - v.costo) / v.precio) * 100)}%` : <span className="text-neutral-500">—</span>}
                   </td>
                   <td className="numero font-bold">{v.stock}</td>
                   <td className="numero">{v.vendidas}</td>

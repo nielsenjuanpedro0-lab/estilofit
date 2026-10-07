@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { prepararEscenario } from "@/verificacion/escenario";
 import { randomUUID } from "node:crypto";
 import { anularCompra, detalleDeCompra, hoyArgentino, listarCompras, registrarCompra, type DatosDeCompra } from "@/servidor/compras";
+import { buscar } from "@/servidor/busqueda";
 import { verificarStock } from "@/servidor/libro-mayor";
 import { cambiarProveedorActivo, crearProveedor, listarProveedores, loMasCompradoA } from "@/servidor/proveedores";
 import { transferir } from "@/servidor/transferencias";
@@ -202,5 +203,15 @@ describe("listado y detalle", () => {
     expect(detalle?.movimientos).toHaveLength(2);
     expect(detalle?.movimientos.every((m) => m.entra)).toBe(true);
     expect(await detalleDeCompra(999_999)).toBeNull();
+  });
+});
+
+describe("buscador", () => {
+  it("encuentra proveedores por nombre y compras por comprobante", async () => {
+    const datos = await compraDePrueba({ comprobante: "Factura A 0007-00001234" });
+    const r = await registrarCompra(datos);
+    if (!r.ok) throw new Error(r.motivo);
+    expect(await buscar("0007-0000", false)).toContainEqual(expect.objectContaining({ tipo: "Compra", href: `/panel/compras/${r.compraId}` }));
+    expect(await buscar("Proveedor", false)).toContainEqual(expect.objectContaining({ tipo: "Proveedor", href: `/panel/proveedores/${datos.proveedorId}` }));
   });
 });

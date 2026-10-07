@@ -1,6 +1,6 @@
 import { asc, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { db } from "@/db/conexion";
-import { eventos, productos, usuarios, variantes, ventas } from "@/db/esquema";
+import { compras, eventos, productos, proveedores, usuarios, variantes, ventas } from "@/db/esquema";
 import { NOMBRE_DE_ROL } from "@/contrato/permisos";
 
 export type Resultado = { tipo: string; titulo: string; detalle: string; href: string };
@@ -56,6 +56,27 @@ export async function buscar(texto: string, incluirUsuarios: boolean): Promise<R
     for (const v of listaDeVentas) {
       resultados.push({ tipo: "Venta", titulo: `Venta #${v.id} · $${v.total.toLocaleString("es-AR")}`, detalle: v.clientUuid, href: `/panel/ventas/${v.id}` });
     }
+  }
+
+  const listaDeProveedores = await db()
+    .select({ id: proveedores.id, nombre: proveedores.nombre, cuit: proveedores.cuit })
+    .from(proveedores)
+    .where(or(ilike(proveedores.nombre, patron), ilike(proveedores.cuit, patron)))
+    .orderBy(asc(proveedores.nombre))
+    .limit(5);
+  for (const p of listaDeProveedores) {
+    resultados.push({ tipo: "Proveedor", titulo: p.nombre, detalle: p.cuit ? `CUIT ${p.cuit}` : "Proveedor", href: `/panel/proveedores/${p.id}` });
+  }
+
+  const listaDeCompras = await db()
+    .select({ id: compras.id, comprobante: compras.comprobante, fecha: compras.fecha, proveedor: proveedores.nombre })
+    .from(compras)
+    .innerJoin(proveedores, eq(proveedores.id, compras.proveedorId))
+    .where(ilike(compras.comprobante, patron))
+    .orderBy(desc(compras.fecha))
+    .limit(5);
+  for (const c of listaDeCompras) {
+    resultados.push({ tipo: "Compra", titulo: `Compra #${c.id} · ${c.comprobante ?? ""}`, detalle: `${c.proveedor} · ${c.fecha}`, href: `/panel/compras/${c.id}` });
   }
 
   if (incluirUsuarios) {
