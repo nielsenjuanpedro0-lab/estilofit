@@ -1,6 +1,8 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
+import { and, asc, count, eq, gte, ilike, inArray, isNotNull, lte, or, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db/conexion";
-import { compraItems, compras, movimientos, proveedores, stockActual, ubicaciones, variantes } from "@/db/esquema";
+import { compraItems, compras, movimientos, productos, proveedores, stockActual, ubicaciones, usuarios, variantes } from "@/db/esquema";
+import { leerListado, parametro, POR_PAGINA, type ParametrosDeListado } from "@/servidor/listados";
 import type { Faltante } from "@/servidor/transferencias";
 
 // Mercadería que entra de un proveedor. Todo en una transacción: cabecera, renglones, movimientos
@@ -124,4 +126,106 @@ export async function anularCompra(compraId: number, usuarioId: number | null, m
     await tx.update(compras).set({ anulada: true, anuladaAt: ahora, anuladaPor: usuarioId, motivoAnulacion: motivo }).where(eq(compras.id, compra.id));
     return { ok: true };
   });
+}
+
+// --- Lectura para el panel ---
+
+const cargo = alias(usuarios, "cargo");
+const anulo = alias(usuarios, "anulo");
+
+function filtrosDeCompras(parametros: ParametrosDeListado) {
+  const condiciones: SQL[] = [];
+  const proveedor = Number(parametro(parametros, "proveedor"));
+  if (Number.isInteger(proveedor) && proveedor > 0) condiciones.push(eq(compras.proveedorId, proveedor));
+  const dia = /^\d{4}-\d{2}-\d{2}$/;
+  const desde = parametro(parametros, "desde");
+  if (desde && dia.test(desde)) condiciones.push(gte(compras.fecha, desde));
+  const hasta = parametro(parametros, "hasta");
+  if (hasta && dia.test(hasta)) condiciones.push(lte(compras.fecha, hasta));
+  const estado = parametro(parametros, "estado");
+  if (estado === "vigentes") condiciones.push(eq(compras.anulada, false));
+  if (estado === "anuladas") condiciones.push(eq(compras.anulada, true));
+  const q = parametro(parametros, "q")?.trim();
+  if (q) {
+    const coincide = /^\d+$/.test(q) ? or(eq(compras.id, Number(q)), ilike(compras.comprobante, `%${q}%`)) : ilike(compras.comprobante, `%${q}%`);
+    if (coincide) condiciones.push(coincide);
+  }
+  return and(...condiciones);
+}
+
+// Columnas de la compra escritas a mano y calificadas: subselects correlacionados.
+const unidadesDeCompra = sql`(select coalesce(sum(ci.cantidad), 0) from compra_items ci where ci.compra_id = "compras"."id")`.mapWith(Number);
+const totalDeCompra = sql`(select coalesce(sum(ci.cantidad * ci.costo_unitario), 0) from compra_items ci where ci.compra_id = "compras"."id")`.mapWith(Number);
+
+export async function listarCompras(parametros: ParametrosDeListado, todo = false) {
+  const listado = leerListado(parametros, { fecha: compras.fecha, numero: compras.id }, "fecha");
+  const donde = filtrosDeCompras(parametros);
+  const consulta = db()
+    .select({
+      id: compras.id,
+      fecha: compras.fecha,
+      proveedorId: compras.proveedorId,
+      proveedor: proveedores.nombre,
+      comprobante: compras.comprobante,
+      destino: ubicaciones.nombre,
+      unidades: unidadesDeCompra,
+      total: totalDeCompra,
+      anulada: compras.anulada,
+    })
+    .from(compras)
+    .innerJoin(proveedores, eq(proveedores.id, compras.proveedorId))
+    .innerJoin(ubicaciones, eq(ubicaciones.id, compras.ubicacionId))
+    .where(donde)
+    .orderBy(listado.orden, sql`${compras.id} desc`);
+  const filas = todo ? await consulta : await consulta.limit(POR_PAGINA).offset(listado.desplazamiento);
+  const [conteo] = await db().select({ total: count() }).from(compras).where(donde);
+  if (!conteo) throw new Error("count() no devolvió ninguna fila");
+  return { filas, total: conteo.total, ...listado };
+}
+
+export async function detalleDeCompra(id: number) {
+  const [fila] = await db()
+    .select({ compra: compras, proveedor: proveedores.nombre, destino: ubicaciones.nombre, cargo: cargo.nombre, anulo: anulo.nombre })
+    .from(compras)
+    .innerJoin(proveedores, eq(proveedores.id, compras.proveedorId))
+    .innerJoin(ubicaciones, eq(ubicaciones.id, compras.ubicacionId))
+    .leftJoin(cargo, eq(cargo.id, compras.usuarioId))
+    .leftJoin(anulo, eq(anulo.id, compras.anuladaPor))
+    .where(eq(compras.id, id));
+  if (!fila) return null;
+
+  const renglones = await db()
+    .select({
+      varianteId: variantes.id,
+      productoId: productos.id,
+      producto: productos.nombre,
+      talle: variantes.talle,
+      color: variantes.color,
+      sku: variantes.sku,
+      cantidad: compraItems.cantidad,
+      costoUnitario: compraItems.costoUnitario,
+    })
+    .from(compraItems)
+    .innerJoin(variantes, eq(variantes.id, compraItems.varianteId))
+    .innerJoin(productos, eq(productos.id, variantes.productoId))
+    .where(eq(compraItems.compraId, id))
+    .orderBy(asc(productos.nombre), asc(variantes.id));
+
+  const movs = await db()
+    .select({
+      id: movimientos.id,
+      cantidad: movimientos.cantidad,
+      entra: isNotNull(movimientos.ubicacionDestinoId).mapWith(Boolean),
+      producto: productos.nombre,
+      talle: variantes.talle,
+      color: variantes.color,
+      ocurridoAt: movimientos.ocurridoAt,
+    })
+    .from(movimientos)
+    .innerJoin(variantes, eq(variantes.id, movimientos.varianteId))
+    .innerJoin(productos, eq(productos.id, variantes.productoId))
+    .where(and(eq(movimientos.tipo, "compra"), eq(movimientos.refId, id)))
+    .orderBy(asc(movimientos.id));
+
+  return { ...fila, renglones, movimientos: movs };
 }

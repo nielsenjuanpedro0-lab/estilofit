@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { prepararEscenario } from "@/verificacion/escenario";
 import { randomUUID } from "node:crypto";
-import { anularCompra, hoyArgentino, registrarCompra, type DatosDeCompra } from "@/servidor/compras";
+import { anularCompra, detalleDeCompra, hoyArgentino, listarCompras, registrarCompra, type DatosDeCompra } from "@/servidor/compras";
 import { verificarStock } from "@/servidor/libro-mayor";
 import { cambiarProveedorActivo, crearProveedor, listarProveedores, loMasCompradoA } from "@/servidor/proveedores";
 import { transferir } from "@/servidor/transferencias";
@@ -171,5 +171,28 @@ describe("proveedores con compras anuladas", () => {
     expect(fila).toMatchObject({ compras: 1, ultimaCompra: "2026-09-01" });
     const comprado = await loMasCompradoA(base.proveedorId);
     expect(comprado.map((c) => c.unidades)).toEqual([4]);
+  });
+});
+
+describe("listado y detalle", () => {
+  it("lista con unidades y total a costo, filtra por estado y muestra el detalle", async () => {
+    const datos = await compraDePrueba();
+    const r = await registrarCompra(datos);
+    const otra = await registrarCompra({ ...(await compraDePrueba()), comprobante: "Factura A 0002-00000099" });
+    if (!r.ok || !otra.ok) throw new Error("Tenían que entrar");
+    await anularCompra(otra.compraId, null, "prueba");
+
+    // La semilla también trae compras (Task 10): se compara por id, no por total.
+    const todas = await listarCompras({});
+    expect(todas.filas.map((f) => f.id)).toEqual(expect.arrayContaining([r.compraId, otra.compraId]));
+    const fila = todas.filas.find((f) => f.id === r.compraId);
+    expect(fila).toMatchObject({ unidades: 13, total: 10 * 12345.5 + 3 * 2000, anulada: false, comprobante: "Remito 0001-00004567" });
+    expect((await listarCompras({ estado: "anuladas" })).filas.map((f) => f.id)).toEqual([otra.compraId]);
+    expect((await listarCompras({ q: "0002-000" })).filas.map((f) => f.id)).toEqual([otra.compraId]);
+
+    const detalle = await detalleDeCompra(r.compraId);
+    expect(detalle?.renglones).toHaveLength(2);
+    expect(detalle?.movimientos.every((m) => m.entra)).toBe(true);
+    expect(await detalleDeCompra(999_999)).toBeNull();
   });
 });
