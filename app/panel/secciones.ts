@@ -20,6 +20,8 @@ export const GRUPOS: { titulo: string | null; secciones: Seccion[] }[] = [
     secciones: [
       { href: "/panel/stock", nombre: "Stock", descripcion: "Stock actual por ubicación", permiso: "ver" },
       { href: "/panel/movimientos", nombre: "Movimientos", descripcion: "Libro mayor: cada entrada y salida", permiso: "ver" },
+      { href: "/panel/compras", nombre: "Compras", descripcion: "Mercadería que entra de proveedores, con costo", permiso: "ver" },
+      { href: "/panel/proveedores", nombre: "Proveedores", descripcion: "A quién le compramos y qué", permiso: "ver" },
       { href: "/panel/catalogo", nombre: "Catálogo", descripcion: "Productos, talles, colores y precios", permiso: "ver" },
       { href: "/panel/ubicaciones", nombre: "Ubicaciones", descripcion: "Depósitos, showrooms y web", permiso: "ver" },
     ],
