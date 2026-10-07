@@ -43,6 +43,13 @@
       "when": 1791325730496,
       "tag": "0005_revision_de_ventas",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791342236382,
+      "tag": "0006_cerrar_api_publica",
+      "breakpoints": true
     }
   ]
 }

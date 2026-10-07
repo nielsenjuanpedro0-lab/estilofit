@@ -1,0 +1,1422 @@
+{
+  "id": "71fcecf5-5767-433d-bc40-4aa1134b3641",
+  "prevId": "61c41f23-55da-498e-993d-e786c2d25b84",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.auditoria": {
+      "name": "auditoria",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "bigint",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "name": "auditoria_id_seq",
+            "increment": "1",
+            "minValue": "1",
+            "maxValue": "9223372036854775807",
+            "startWith": "1",
+            "cache": "1",
+            "cycle": false,
+            "schema": "public",
+            "type": "always"
+          }
+        },
+        "usuario_id": {
+          "name": "usuario_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "accion": {
+          "name": "accion",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "detalle": {
+          "name": "detalle",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ocurrido_at": {
+          "name": "ocurrido_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "auditoria_ocurrido_at_index": {
+          "name": "auditoria_ocurrido_at_index",
+          "columns": [
+            {
+              "expression": "ocurrido_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "auditoria_usuario_id_index": {
+          "name": "auditoria_usuario_id_index",
+          "columns": [
+            {
+              "expression": "usuario_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {
+        "auditoria_usuario_id_usuarios_id_fk": {
+          "name": "auditoria_usuario_id_usuarios_id_fk",
+          "tableFrom": "auditoria",
+          "columnsFrom": [
+            "usuario_id"
+          ],
+          "tableTo": "usuarios",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.dispositivos": {
+      "name": "dispositivos",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "name": "dispositivos_id_seq",
+            "increment": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "startWith": "1",
+            "cache": "1",
+            "cycle": false,
+            "schema": "public",
+            "type": "always"
+          }
+        },
+        "nombre": {
+          "name": "nombre",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "codigo_alta_hash": {
+          "name": "codigo_alta_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "codigo_alta_vence_at": {
+          "name": "codigo_alta_vence_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "token_hash": {
+          "name": "token_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "creado_at": {
+          "name": "creado_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "enrolado_at": {
+          "name": "enrolado_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "revocado_at": {
+          "name": "revocado_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ultimo_contacto_at": {
+          "name": "ultimo_contacto_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "evento_id": {
+          "name": "evento_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pendientes_informadas": {
+          "name": "pendientes_informadas",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pendientes_informadas_at": {
+          "name": "pendientes_informadas_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "dispositivos_evento_id_eventos_id_fk": {
+          "name": "dispositivos_evento_id_eventos_id_fk",
+          "tableFrom": "dispositivos",
+          "columnsFrom": [
+            "evento_id"
+          ],
+          "tableTo": "eventos",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "dispositivos_codigoAltaHash_unique": {
+          "name": "dispositivos_codigoAltaHash_unique",
+          "columns": [
+            "codigo_alta_hash"
+          ],
+          "nullsNotDistinct": false
+        },
+        "dispositivos_tokenHash_unique": {
+          "name": "dispositivos_tokenHash_unique",
+          "columns": [
+            "token_hash"
+          ],
+          "nullsNotDistinct": false
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.eventos": {
+      "name": "eventos",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "name": "eventos_id_seq",
+            "increment": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "startWith": "1",
+            "cache": "1",
+            "cycle": false,
+            "schema": "public",
+            "type": "always"
+          }
+        },
+        "nombre": {
+          "name": "nombre",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lugar": {
+          "name": "lugar",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fecha_desde": {
+          "name": "fecha_desde",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fecha_hasta": {
+          "name": "fecha_hasta",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ubicacion_id": {
+          "name": "ubicacion_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "estado": {
+          "name": "estado",
+          "type": "estado_evento",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'preparacion'"
+        },
+        "cerrado_at": {
+          "name": "cerrado_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "eventos_ubicacion_id_ubicaciones_id_fk": {
+          "name": "eventos_ubicacion_id_ubicaciones_id_fk",
+          "tableFrom": "eventos",
+          "columnsFrom": [
+            "ubicacion_id"
+          ],
+          "tableTo": "ubicaciones",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "eventos_ubicacionId_unique": {
+          "name": "eventos_ubicacionId_unique",
+          "columns": [
+            "ubicacion_id"
+          ],
+          "nullsNotDistinct": false
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "eventos_fechas_ordenadas": {
+          "name": "eventos_fechas_ordenadas",
+          "value": "\"eventos\".\"fecha_hasta\" >= \"eventos\".\"fecha_desde\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.movimientos": {
+      "name": "movimientos",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "bigint",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "name": "movimientos_id_seq",
+            "increment": "1",
+            "minValue": "1",
+            "maxValue": "9223372036854775807",
+            "startWith": "1",
+            "cache": "1",
+            "cycle": false,
+            "schema": "public",
+            "type": "always"
+          }
+        },
+        "variante_id": {
+          "name": "variante_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ubicacion_origen_id": {
+          "name": "ubicacion_origen_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ubicacion_destino_id": {
+          "name": "ubicacion_destino_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cantidad": {
+          "name": "cantidad",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tipo": {
+          "name": "tipo",
+          "type": "tipo_movimiento",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ref_id": {
+          "name": "ref_id",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "client_uuid": {
+          "name": "client_uuid",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "device_id": {
+          "name": "device_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ocurrido_at": {
+          "name": "ocurrido_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "recibido_at": {
+          "name": "recibido_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "usuario_id": {
+          "name": "usuario_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nota": {
+          "name": "nota",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "movimientos_variante_id_index": {
+          "name": "movimientos_variante_id_index",
+          "columns": [
+            {
+              "expression": "variante_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "movimientos_ubicacion_origen_id_index": {
+          "name": "movimientos_ubicacion_origen_id_index",
+          "columns": [
+            {
+              "expression": "ubicacion_origen_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "movimientos_ubicacion_destino_id_index": {
+          "name": "movimientos_ubicacion_destino_id_index",
+          "columns": [
+            {
+              "expression": "ubicacion_destino_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "movimientos_tipo_ref_id_index": {
+          "name": "movimientos_tipo_ref_id_index",
+          "columns": [
+            {
+              "expression": "tipo",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "ref_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {
+        "movimientos_variante_id_variantes_id_fk": {
+          "name": "movimientos_variante_id_variantes_id_fk",
+          "tableFrom": "movimientos",
+          "columnsFrom": [
+            "variante_id"
+          ],
+          "tableTo": "variantes",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "movimientos_ubicacion_origen_id_ubicaciones_id_fk": {
+          "name": "movimientos_ubicacion_origen_id_ubicaciones_id_fk",
+          "tableFrom": "movimientos",
+          "columnsFrom": [
+            "ubicacion_origen_id"
+          ],
+          "tableTo": "ubicaciones",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "movimientos_ubicacion_destino_id_ubicaciones_id_fk": {
+          "name": "movimientos_ubicacion_destino_id_ubicaciones_id_fk",
+          "tableFrom": "movimientos",
+          "columnsFrom": [
+            "ubicacion_destino_id"
+          ],
+          "tableTo": "ubicaciones",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "movimientos_device_id_dispositivos_id_fk": {
+          "name": "movimientos_device_id_dispositivos_id_fk",
+          "tableFrom": "movimientos",
+          "columnsFrom": [
+            "device_id"
+          ],
+          "tableTo": "dispositivos",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "movimientos_usuario_id_usuarios_id_fk": {
+          "name": "movimientos_usuario_id_usuarios_id_fk",
+          "tableFrom": "movimientos",
+          "columnsFrom": [
+            "usuario_id"
+          ],
+          "tableTo": "usuarios",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "movimientos_clientUuid_unique": {
+          "name": "movimientos_clientUuid_unique",
+          "columns": [
+            "client_uuid"
+          ],
+          "nullsNotDistinct": false
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "movimientos_cantidad_positiva": {
+          "name": "movimientos_cantidad_positiva",
+          "value": "\"movimientos\".\"cantidad\" > 0"
+        },
+        "movimientos_con_origen_o_destino": {
+          "name": "movimientos_con_origen_o_destino",
+          "value": "\"movimientos\".\"ubicacion_origen_id\" is not null or \"movimientos\".\"ubicacion_destino_id\" is not null"
+        },
+        "movimientos_origen_distinto_de_destino": {
+          "name": "movimientos_origen_distinto_de_destino",
+          "value": "\"movimientos\".\"ubicacion_origen_id\" is distinct from \"movimientos\".\"ubicacion_destino_id\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.productos": {
+      "name": "productos",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "name": "productos_id_seq",
+            "increment": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "startWith": "1",
+            "cache": "1",
+            "cycle": false,
+            "schema": "public",
+            "type": "always"
+          }
+        },
+        "nombre": {
+          "name": "nombre",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "marca": {
+          "name": "marca",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "categoria": {
+          "name": "categoria",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "activo": {
+          "name": "activo",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "creado_at": {
+          "name": "creado_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.stock_actual": {
+      "name": "stock_actual",
+      "schema": "",
+      "columns": {
+        "variante_id": {
+          "name": "variante_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ubicacion_id": {
+          "name": "ubicacion_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cantidad": {
+          "name": "cantidad",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "stock_actual_variante_id_variantes_id_fk": {
+          "name": "stock_actual_variante_id_variantes_id_fk",
+          "tableFrom": "stock_actual",
+          "columnsFrom": [
+            "variante_id"
+          ],
+          "tableTo": "variantes",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "stock_actual_ubicacion_id_ubicaciones_id_fk": {
+          "name": "stock_actual_ubicacion_id_ubicaciones_id_fk",
+          "tableFrom": "stock_actual",
+          "columnsFrom": [
+            "ubicacion_id"
+          ],
+          "tableTo": "ubicaciones",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "stock_actual_variante_id_ubicacion_id_pk": {
+          "name": "stock_actual_variante_id_ubicacion_id_pk",
+          "columns": [
+            "variante_id",
+            "ubicacion_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.ubicaciones": {
+      "name": "ubicaciones",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "name": "ubicaciones_id_seq",
+            "increment": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "startWith": "1",
+            "cache": "1",
+            "cycle": false,
+            "schema": "public",
+            "type": "always"
+          }
+        },
+        "nombre": {
+          "name": "nombre",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tipo": {
+          "name": "tipo",
+          "type": "tipo_ubicacion",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "activa": {
+          "name": "activa",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "ubicaciones_nombre_unique": {
+          "name": "ubicaciones_nombre_unique",
+          "columns": [
+            "nombre"
+          ],
+          "nullsNotDistinct": false
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.usuarios": {
+      "name": "usuarios",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "name": "usuarios_id_seq",
+            "increment": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "startWith": "1",
+            "cache": "1",
+            "cycle": false,
+            "schema": "public",
+            "type": "always"
+          }
+        },
+        "nombre": {
+          "name": "nombre",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rol": {
+          "name": "rol",
+          "type": "rol_usuario",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "clave_hash": {
+          "name": "clave_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pin_hash": {
+          "name": "pin_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "activo": {
+          "name": "activo",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "version_sesion": {
+          "name": "version_sesion",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "creado_at": {
+          "name": "creado_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "ultimo_ingreso_at": {
+          "name": "ultimo_ingreso_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "usuarios_email_unique": {
+          "name": "usuarios_email_unique",
+          "columns": [
+            "email"
+          ],
+          "nullsNotDistinct": false
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.variantes": {
+      "name": "variantes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "name": "variantes_id_seq",
+            "increment": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "startWith": "1",
+            "cache": "1",
+            "cycle": false,
+            "schema": "public",
+            "type": "always"
+          }
+        },
+        "producto_id": {
+          "name": "producto_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sku": {
+          "name": "sku",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "talle": {
+          "name": "talle",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "color": {
+          "name": "color",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "precio": {
+          "name": "precio",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "costo": {
+          "name": "costo",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "imagen_url": {
+          "name": "imagen_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tiendanube_variant_id": {
+          "name": "tiendanube_variant_id",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "activo": {
+          "name": "activo",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "variantes_producto_id_productos_id_fk": {
+          "name": "variantes_producto_id_productos_id_fk",
+          "tableFrom": "variantes",
+          "columnsFrom": [
+            "producto_id"
+          ],
+          "tableTo": "productos",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "variantes_sku_unique": {
+          "name": "variantes_sku_unique",
+          "columns": [
+            "sku"
+          ],
+          "nullsNotDistinct": false
+        },
+        "variantes_productoId_talle_color_unique": {
+          "name": "variantes_productoId_talle_color_unique",
+          "columns": [
+            "producto_id",
+            "talle",
+            "color"
+          ],
+          "nullsNotDistinct": false
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "variantes_precio_no_negativo": {
+          "name": "variantes_precio_no_negativo",
+          "value": "\"variantes\".\"precio\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.venta_items": {
+      "name": "venta_items",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "bigint",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "name": "venta_items_id_seq",
+            "increment": "1",
+            "minValue": "1",
+            "maxValue": "9223372036854775807",
+            "startWith": "1",
+            "cache": "1",
+            "cycle": false,
+            "schema": "public",
+            "type": "always"
+          }
+        },
+        "venta_id": {
+          "name": "venta_id",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "variante_id": {
+          "name": "variante_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cantidad": {
+          "name": "cantidad",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "precio_unitario": {
+          "name": "precio_unitario",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "venta_items_venta_id_index": {
+          "name": "venta_items_venta_id_index",
+          "columns": [
+            {
+              "expression": "venta_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {
+        "venta_items_venta_id_ventas_id_fk": {
+          "name": "venta_items_venta_id_ventas_id_fk",
+          "tableFrom": "venta_items",
+          "columnsFrom": [
+            "venta_id"
+          ],
+          "tableTo": "ventas",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "venta_items_variante_id_variantes_id_fk": {
+          "name": "venta_items_variante_id_variantes_id_fk",
+          "tableFrom": "venta_items",
+          "columnsFrom": [
+            "variante_id"
+          ],
+          "tableTo": "variantes",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "venta_items_cantidad_positiva": {
+          "name": "venta_items_cantidad_positiva",
+          "value": "\"venta_items\".\"cantidad\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.ventas": {
+      "name": "ventas",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "bigint",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "name": "ventas_id_seq",
+            "increment": "1",
+            "minValue": "1",
+            "maxValue": "9223372036854775807",
+            "startWith": "1",
+            "cache": "1",
+            "cycle": false,
+            "schema": "public",
+            "type": "always"
+          }
+        },
+        "client_uuid": {
+          "name": "client_uuid",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "evento_id": {
+          "name": "evento_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ubicacion_id": {
+          "name": "ubicacion_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "total": {
+          "name": "total",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "total_catalogo": {
+          "name": "total_catalogo",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "medio_pago": {
+          "name": "medio_pago",
+          "type": "medio_pago",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "device_id": {
+          "name": "device_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "usuario_id": {
+          "name": "usuario_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "vendido_at": {
+          "name": "vendido_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "recibido_at": {
+          "name": "recibido_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "anulada": {
+          "name": "anulada",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "para_revisar": {
+          "name": "para_revisar",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "motivo_revision": {
+          "name": "motivo_revision",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "revisada_at": {
+          "name": "revisada_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "revisada_por": {
+          "name": "revisada_por",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nota_de_revision": {
+          "name": "nota_de_revision",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "ventas_evento_id_index": {
+          "name": "ventas_evento_id_index",
+          "columns": [
+            {
+              "expression": "evento_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "ventas_recibido_at_index": {
+          "name": "ventas_recibido_at_index",
+          "columns": [
+            {
+              "expression": "recibido_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {
+        "ventas_evento_id_eventos_id_fk": {
+          "name": "ventas_evento_id_eventos_id_fk",
+          "tableFrom": "ventas",
+          "columnsFrom": [
+            "evento_id"
+          ],
+          "tableTo": "eventos",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "ventas_ubicacion_id_ubicaciones_id_fk": {
+          "name": "ventas_ubicacion_id_ubicaciones_id_fk",
+          "tableFrom": "ventas",
+          "columnsFrom": [
+            "ubicacion_id"
+          ],
+          "tableTo": "ubicaciones",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "ventas_device_id_dispositivos_id_fk": {
+          "name": "ventas_device_id_dispositivos_id_fk",
+          "tableFrom": "ventas",
+          "columnsFrom": [
+            "device_id"
+          ],
+          "tableTo": "dispositivos",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "ventas_usuario_id_usuarios_id_fk": {
+          "name": "ventas_usuario_id_usuarios_id_fk",
+          "tableFrom": "ventas",
+          "columnsFrom": [
+            "usuario_id"
+          ],
+          "tableTo": "usuarios",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "ventas_revisada_por_usuarios_id_fk": {
+          "name": "ventas_revisada_por_usuarios_id_fk",
+          "tableFrom": "ventas",
+          "columnsFrom": [
+            "revisada_por"
+          ],
+          "tableTo": "usuarios",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "ventas_clientUuid_unique": {
+          "name": "ventas_clientUuid_unique",
+          "columns": [
+            "client_uuid"
+          ],
+          "nullsNotDistinct": false
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.estado_evento": {
+      "name": "estado_evento",
+      "schema": "public",
+      "values": [
+        "preparacion",
+        "abierto",
+        "cerrado"
+      ]
+    },
+    "public.medio_pago": {
+      "name": "medio_pago",
+      "schema": "public",
+      "values": [
+        "efectivo",
+        "transferencia",
+        "tarjeta"
+      ]
+    },
+    "public.rol_usuario": {
+      "name": "rol_usuario",
+      "schema": "public",
+      "values": [
+        "administrador",
+        "encargado",
+        "vendedor",
+        "consulta"
+      ]
+    },
+    "public.tipo_movimiento": {
+      "name": "tipo_movimiento",
+      "schema": "public",
+      "values": [
+        "carga_inicial",
+        "transferencia",
+        "venta",
+        "devolucion",
+        "ajuste",
+        "merma"
+      ]
+    },
+    "public.tipo_ubicacion": {
+      "name": "tipo_ubicacion",
+      "schema": "public",
+      "values": [
+        "deposito",
+        "showroom",
+        "evento",
+        "web"
+      ]
+    }
+  },
+  "schemas": {},
+  "views": {
+    "public.stock_segun_movimientos": {
+      "name": "stock_segun_movimientos",
+      "schema": "public",
+      "columns": {
+        "varianteId": {
+          "name": "varianteId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ubicacionId": {
+          "name": "ubicacionId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cantidad": {
+          "name": "cantidad",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "materialized": false,
+      "isExisting": true
+    }
+  },
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}
