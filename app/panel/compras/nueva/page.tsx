@@ -37,7 +37,7 @@ export default async function NuevaCompra({ searchParams }: { searchParams: Prom
       <EncabezadoDePagina
         migas={[{ href: "/panel/compras", nombre: "Compras" }]}
         titulo="Nueva compra"
-        descripcion="Lo que entra suma stock en el destino, y el costo de cada variante pasa a ser el de esta compra."
+        descripcion="Lo que entra suma stock en el destino, y el costo de cada variante pasa a ser el de esta compra, salvo que ya haya una con fecha posterior."
       />
       {activos.length === 0 ? (
         <Vacio titulo="Primero cargá un proveedor">

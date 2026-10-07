@@ -24,7 +24,7 @@ export default async function Compras({ searchParams }: { searchParams: Promise<
     <>
       <EncabezadoDePagina
         titulo="Compras"
-        descripcion="Mercadería que entra de proveedores. Cada compra suma stock en el destino y deja el costo de cada variante como el de esta compra."
+        descripcion="Mercadería que entra de proveedores. Cada compra suma stock en el destino y actualiza el costo de cada variante, salvo que ya haya una compra con fecha posterior."
         acciones={
           <>
             <EnlaceBoton href={`/panel/exportar/compras${comoConsulta(p)}`}>Exportar CSV</EnlaceBoton>
