@@ -15,7 +15,7 @@ export default async function Proveedor({ params }: { params: Promise<{ id: stri
   const yo = await paginaConPermiso("ver");
   const opera = puede(yo.rol, "operar");
   const id = Number((await params).id);
-  if (!Number.isInteger(id)) notFound();
+  if (!Number.isSafeInteger(id) || id <= 0 || id > 2147483647) notFound();
   const [proveedor] = await db().select().from(proveedores).where(eq(proveedores.id, id));
   if (!proveedor) notFound();
 

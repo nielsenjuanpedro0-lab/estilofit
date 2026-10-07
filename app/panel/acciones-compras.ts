@@ -65,17 +65,17 @@ export async function cambiarProveedorActivoAccion(proveedorId: number, activo: 
 
 const CompraDelFormulario = z.object({
   clientUuid: z.uuid("Recargá la página y volvé a cargar la compra"),
-  proveedorId: z.number({ error: "Elegí el proveedor" }).int().positive("Elegí el proveedor"),
-  ubicacionId: z.number({ error: "Elegí a dónde entra" }).int().positive("Elegí a dónde entra"),
-  fecha: z.string().date("Elegí la fecha del comprobante"),
+  proveedorId: z.number({ error: "Elegí el proveedor" }).int().positive("Elegí el proveedor").max(2147483647),
+  ubicacionId: z.number({ error: "Elegí a dónde entra" }).int().positive("Elegí a dónde entra").max(2147483647),
+  fecha: z.iso.date("Elegí la fecha del comprobante"),
   comprobante: opcional(100),
   nota: opcional(500),
   items: z
     .array(
       z.object({
-        varianteId: id,
+        varianteId: id.max(2147483647),
         cantidad: z.number().int("La cantidad va sin decimales").positive("La cantidad tiene que ser mayor a 0").max(9999, "La cantidad máxima por renglón es 9999"),
-        costoUnitario: z.number({ error: "El costo tiene que ser un número" }).nonnegative("El costo no puede ser negativo").max(99_999_999),
+        costoUnitario: z.number({ error: "El costo tiene que ser un número" }).nonnegative("El costo no puede ser negativo").max(99_999_999).multipleOf(0.01, "El costo va con hasta dos decimales"),
       }),
     )
     .min(1, "Agregá al menos un producto a la compra"),

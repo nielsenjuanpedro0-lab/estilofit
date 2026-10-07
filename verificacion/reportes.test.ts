@@ -84,4 +84,19 @@ describe("reportes", () => {
     const ranking = await rankingDeProductos({ eventoId: tandil }, 100);
     expect(ranking.reduce((s, p) => s + p.costo, 0)).toBeCloseTo(margen.costo, 2);
   });
+
+  // Va último: la base es compartida y este test deja un renglón sin costo.
+  it("un renglón de venta sin costo sale del margen y se cuenta aparte", async () => {
+    const antes = await margenDelPeriodo({ eventoId: tandil });
+    const renglon = await b.consultarUno<{ id: number; cantidad: number; precio: string }>(
+      `select vi.id, vi.cantidad, vi.precio_unitario as precio from venta_items vi join ventas v on v.id = vi.venta_id
+       where v.evento_id = $1 and not v.anulada and vi.costo_unitario is not null order by vi.id limit 1`,
+      [tandil],
+    );
+    await b.consultar("update venta_items set costo_unitario = null where id = $1", [renglon.id]);
+
+    const despues = await margenDelPeriodo({ eventoId: tandil });
+    expect(despues.sinCosto).toBe(antes.sinCosto + renglon.cantidad);
+    expect(despues.importeConCosto).toBeCloseTo(antes.importeConCosto - renglon.cantidad * Number(renglon.precio), 2);
+  });
 });

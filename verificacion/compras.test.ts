@@ -218,8 +218,8 @@ describe("listado y detalle", () => {
     await expect(listarCompras({ q: "123456789012" })).resolves.toMatchObject({ total: 0, filas: [] });
 
     // Fechas imposibles no rompen con error Postgres (issue: regex acepta 2026-02-31)
-    await expect(listarCompras({ desde: "2026-02-31" })).resolves.not.toThrow();
-    await expect(listarCompras({ hasta: "2026-02-31" })).resolves.not.toThrow();
+    await expect(listarCompras({ desde: "2026-02-31" })).resolves.toMatchObject({ filas: expect.any(Array) });
+    await expect(listarCompras({ hasta: "2026-02-31" })).resolves.toMatchObject({ filas: expect.any(Array) });
 
     const detalle = await detalleDeCompra(r.compraId);
     expect(detalle?.renglones).toHaveLength(2);

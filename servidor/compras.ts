@@ -158,7 +158,7 @@ function esUnaFechaValida(s: string): boolean {
 function filtrosDeCompras(parametros: ParametrosDeListado) {
   const condiciones: SQL[] = [];
   const proveedor = Number(parametro(parametros, "proveedor"));
-  if (Number.isInteger(proveedor) && proveedor > 0) condiciones.push(eq(compras.proveedorId, proveedor));
+  if (Number.isSafeInteger(proveedor) && proveedor > 0 && proveedor <= 2147483647) condiciones.push(eq(compras.proveedorId, proveedor));
   const desde = parametro(parametros, "desde");
   if (desde && esUnaFechaValida(desde)) condiciones.push(gte(compras.fecha, desde));
   const hasta = parametro(parametros, "hasta");
