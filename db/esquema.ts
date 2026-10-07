@@ -30,6 +30,7 @@ export const tipoMovimiento = pgEnum("tipo_movimiento", [
   "devolucion",
   "ajuste",
   "merma",
+  "compra",
 ]);
 export const medioPago = pgEnum("medio_pago", ["efectivo", "transferencia", "tarjeta"]);
 export const rolUsuario = pgEnum("rol_usuario", ["administrador", "encargado", "vendedor", "consulta"]);
@@ -224,6 +225,9 @@ export const ventaItems = pgTable(
       .references(() => variantes.id),
     cantidad: integer().notNull(),
     precioUnitario: plata().notNull(),
+    // El costo vigente cuando el servidor registró la venta. Nulo en ventas de antes de Compras o
+    // de variantes sin costo: esas no entran al margen.
+    costoUnitario: plata(),
   },
   (t) => [check("venta_items_cantidad_positiva", sql`${t.cantidad} > 0`), index().on(t.ventaId)],
 );
@@ -248,4 +252,64 @@ export const stockActual = pgTable(
     cantidad: integer().notNull(),
   },
   (t) => [primaryKey({ columns: [t.varianteId, t.ubicacionId] })],
+);
+
+export const proveedores = pgTable("proveedores", {
+  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  nombre: text().notNull().unique(),
+  cuit: text(),
+  telefono: text(),
+  email: text(),
+  nota: text(),
+  // Con compras no se borra: se desactiva.
+  activo: boolean().notNull().default(true),
+  creadoAt: ahora(),
+});
+
+// Mercadería que entra de un proveedor. Cada renglón genera un movimiento "compra" con ref_id = id.
+// Anular no borra nada: genera los movimientos "compra" de salida.
+export const compras = pgTable(
+  "compras",
+  {
+    id: integer().primaryKey().generatedAlwaysAsIdentity(),
+    // Lo genera el formulario al abrirse: un doble clic en Guardar no carga dos compras.
+    clientUuid: uuid().notNull().unique(),
+    proveedorId: integer()
+      .notNull()
+      .references(() => proveedores.id),
+    ubicacionId: integer()
+      .notNull()
+      .references(() => ubicaciones.id),
+    // La fecha del comprobante, no la de carga.
+    fecha: date({ mode: "string" }).notNull(),
+    comprobante: text(),
+    nota: text(),
+    usuarioId: integer().references(() => usuarios.id),
+    creadoAt: ahora(),
+    anulada: boolean().notNull().default(false),
+    anuladaAt: timestamp({ withTimezone: true }),
+    anuladaPor: integer().references(() => usuarios.id),
+    motivoAnulacion: text(),
+  },
+  (t) => [index().on(t.proveedorId), index().on(t.fecha)],
+);
+
+export const compraItems = pgTable(
+  "compra_items",
+  {
+    id: integer().primaryKey().generatedAlwaysAsIdentity(),
+    compraId: integer()
+      .notNull()
+      .references(() => compras.id),
+    varianteId: integer()
+      .notNull()
+      .references(() => variantes.id),
+    cantidad: integer().notNull(),
+    costoUnitario: plata().notNull(),
+  },
+  (t) => [
+    unique().on(t.compraId, t.varianteId),
+    check("compra_items_cantidad_positiva", sql`${t.cantidad} > 0`),
+    check("compra_items_costo_no_negativo", sql`${t.costoUnitario} >= 0`),
+  ],
 );

@@ -27,6 +27,7 @@ const TIPOS = {
   devolucion: { nombre: "Devolución", tono: "info" },
   ajuste: { nombre: "Ajuste", tono: "alerta" },
   merma: { nombre: "Merma", tono: "malo" },
+  compra: { nombre: "Compra", tono: "info" },
 } as const;
 
 export default async function Movimientos({ searchParams }: { searchParams: Promise<ParametrosDeListado> }) {
@@ -135,6 +136,10 @@ export default async function Movimientos({ searchParams }: { searchParams: Prom
                       {m.tipo === "venta" && m.refId ? (
                         <Link href={`/panel/ventas/${m.refId}`} className="underline">
                           Venta #{m.refId}
+                        </Link>
+                      ) : m.tipo === "compra" && m.refId ? (
+                        <Link href={`/panel/compras/${m.refId}`} className="underline">
+                          Compra #{m.refId}
                         </Link>
                       ) : (
                         m.nota
