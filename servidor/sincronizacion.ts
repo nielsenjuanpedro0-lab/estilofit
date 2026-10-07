@@ -43,15 +43,21 @@ async function registrarVenta(dispositivoId: number, venta: VentaDelDispositivo)
     if (!evento) return { ok: false, motivo: `El evento ${venta.eventoId} no existe` };
 
     const ids = [...new Set(venta.items.map((item) => item.varianteId))];
-    const catalogo = await tx.select({ id: variantes.id, precio: variantes.precio }).from(variantes).where(inArray(variantes.id, ids));
+    const catalogo = await tx
+      .select({ id: variantes.id, precio: variantes.precio, costo: variantes.costo })
+      .from(variantes)
+      .where(inArray(variantes.id, ids));
     const precios = new Map(catalogo.map((v) => [v.id, v.precio]));
     const inexistentes = ids.filter((id) => !precios.has(id));
     if (inexistentes.length > 0) return { ok: false, motivo: `Variantes que no existen en el catálogo: ${inexistentes.join(", ")}` };
 
+    // El costo de hoy queda en el renglón: una compra de mañana no cambia el margen de esta venta.
+    const costos = new Map(catalogo.map((v) => [v.id, v.costo]));
+
     const renglones = venta.items.map((item) => {
       const precio = precios.get(item.varianteId);
       if (precio === undefined) throw new Error(`Precio faltante para la variante ${item.varianteId}`);
-      return { ...item, precioUnitario: precio };
+      return { ...item, precioUnitario: precio, costoUnitario: costos.get(item.varianteId) ?? null };
     });
     const totalCatalogo = renglones.reduce((suma, r) => suma + aCentavos(r.precioUnitario) * r.cantidad, 0);
 
@@ -93,7 +99,13 @@ async function registrarVenta(dispositivoId: number, venta: VentaDelDispositivo)
     if (!nueva) return { ok: true };
 
     await tx.insert(ventaItems).values(
-      renglones.map((r) => ({ ventaId: nueva.id, varianteId: r.varianteId, cantidad: r.cantidad, precioUnitario: r.precioUnitario })),
+      renglones.map((r) => ({
+        ventaId: nueva.id,
+        varianteId: r.varianteId,
+        cantidad: r.cantidad,
+        precioUnitario: r.precioUnitario,
+        costoUnitario: r.costoUnitario,
+      })),
     );
     // Sin chequeo de stock: la plata ya se cobró. Si queda negativo, se resuelve en el cierre.
     await tx

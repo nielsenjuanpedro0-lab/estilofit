@@ -181,4 +181,18 @@ describe("precio y casos con plata cobrada", () => {
     const dispositivos = await e.b.consultar<{ device_id: number }>("select distinct device_id from ventas where evento_id = $1", [e.evento.id]);
     expect(dispositivos).toHaveLength(2);
   });
+
+  it("cada renglón guarda el costo vigente, y un cambio de costo posterior no lo toca", async () => {
+    const v = variante(0);
+    await e.b.consultar("update variantes set costo = 1234 where id = $1", [v.id]);
+    const venta = ventaDePrueba(e.evento.id, [{ varianteId: v.id, cantidad: 1, precio: v.precio }]);
+    await subirOk(e.tokenA, [venta]);
+    await e.b.consultar("update variantes set costo = 9999 where id = $1", [v.id]);
+
+    const { costo } = await e.b.consultarUno<{ costo: string }>(
+      "select vi.costo_unitario as costo from venta_items vi join ventas v on v.id = vi.venta_id where v.client_uuid = $1",
+      [venta.clientUuid],
+    );
+    expect(Number(costo)).toBe(1234);
+  });
 });

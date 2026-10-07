@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { sembrar } from "@/db/semilla";
-import { rankingDeProductos, rankingDeTallesPorCategoria, stockPorUbicacion } from "@/servidor/reportes";
+import { rankingDeProductos, rankingDeTallesPorCategoria, stockPorUbicacion, margenDelPeriodo } from "@/servidor/reportes";
 import { levantarBaseEmbebida } from "@/verificacion/base-embebida";
 
 // Los reportes se comparan contra consultas SQL escritas aparte, sobre la semilla completa.
@@ -62,5 +62,26 @@ describe("reportes", () => {
     const deposito = (lista: typeof stock) => lista.find((s) => s.ubicacion === "Depósito")?.unidades ?? 0;
     expect(deposito(medias)).toBeGreaterThan(0);
     expect(deposito(medias)).toBeLessThan(deposito(stock));
+  });
+
+  it("el margen sale de los renglones con costo y las unidades sin costo quedan aparte", async () => {
+    const esperado = await b.consultarUno<{ importe: string; costo: string; sin: number }>(
+      `select coalesce(sum(vi.cantidad * vi.precio_unitario) filter (where vi.costo_unitario is not null), 0) as importe,
+              coalesce(sum(vi.cantidad * vi.costo_unitario), 0) as costo,
+              coalesce(sum(vi.cantidad) filter (where vi.costo_unitario is null), 0)::int as sin
+       from venta_items vi join ventas v on v.id = vi.venta_id where v.evento_id = $1 and not v.anulada`,
+      [tandil],
+    );
+    const margen = await margenDelPeriodo({ eventoId: tandil });
+    expect(margen.importeConCosto).toBeCloseTo(Number(esperado.importe), 2);
+    expect(margen.costo).toBeCloseTo(Number(esperado.costo), 2);
+    expect(margen.margen).toBeCloseTo(Number(esperado.importe) - Number(esperado.costo), 2);
+    expect(margen.sinCosto).toBe(esperado.sin);
+    // La semilla carga costos antes de vender: todo el Tandil tiene costo.
+    expect(margen.sinCosto).toBe(0);
+    expect(margen.margen).toBeGreaterThan(0);
+
+    const ranking = await rankingDeProductos({ eventoId: tandil }, 100);
+    expect(ranking.reduce((s, p) => s + p.costo, 0)).toBeCloseTo(margen.costo, 2);
   });
 });

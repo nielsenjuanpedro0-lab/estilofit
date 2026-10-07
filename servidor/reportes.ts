@@ -19,6 +19,10 @@ const unidades = sql`sum(${ventaItems.cantidad})`.mapWith(Number);
 // Importe a precio de lista: el servidor recalcula cada renglón contra el catálogo. El total cobrado
 // (con redondeos en efectivo) está en ventas por evento.
 const importe = sql`sum(${ventaItems.cantidad} * ${ventaItems.precioUnitario})`.mapWith(Number);
+// Margen solo con los renglones que tienen costo: los que no, se cuentan aparte para no inflarlo.
+const importeConCosto = sql`coalesce(sum(${ventaItems.cantidad} * ${ventaItems.precioUnitario}) filter (where ${ventaItems.costoUnitario} is not null), 0)`.mapWith(Number);
+const costo = sql`coalesce(sum(${ventaItems.cantidad} * ${ventaItems.costoUnitario}), 0)`.mapWith(Number);
+const sinCosto = sql`coalesce(sum(${ventaItems.cantidad}) filter (where ${ventaItems.costoUnitario} is null), 0)`.mapWith(Number);
 
 function ventasFiltradas(filtro: Filtro) {
   return and(eq(ventas.anulada, false), ...condicionesDeEvento(filtro));
@@ -26,7 +30,7 @@ function ventasFiltradas(filtro: Filtro) {
 
 export async function rankingDeProductos(filtro: Filtro, limite = 20) {
   return db()
-    .select({ productoId: productos.id, producto: productos.nombre, marca: productos.marca, categoria: productos.categoria, unidades, importe })
+    .select({ productoId: productos.id, producto: productos.nombre, marca: productos.marca, categoria: productos.categoria, unidades, importe, importeConCosto, costo, sinCosto })
     .from(ventaItems)
     .innerJoin(ventas, eq(ventas.id, ventaItems.ventaId))
     .innerJoin(eventos, eq(eventos.id, ventas.eventoId))
@@ -115,4 +119,15 @@ export async function eventosParaFiltro() {
 export function filtroDeEventosParaResumen(filtro: Filtro) {
   const condiciones = condicionesDeEvento(filtro);
   return condiciones.length > 0 ? and(...condiciones) : undefined;
+}
+
+export async function margenDelPeriodo(filtro: Filtro) {
+  const [fila] = await db()
+    .select({ importeConCosto, costo, sinCosto })
+    .from(ventaItems)
+    .innerJoin(ventas, eq(ventas.id, ventaItems.ventaId))
+    .innerJoin(eventos, eq(eventos.id, ventas.eventoId))
+    .where(ventasFiltradas(filtro));
+  const r = fila ?? { importeConCosto: 0, costo: 0, sinCosto: 0 };
+  return { ...r, margen: r.importeConCosto - r.costo };
 }
