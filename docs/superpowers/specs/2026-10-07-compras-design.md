@@ -37,7 +37,7 @@ Migración nueva (`0007_compras`):
 - **Anulación:**
   - Pide nota obligatoria y no se puede anular dos veces.
   - Bloquea con `FOR UPDATE` el stock del destino. Si falta stock para algún renglón (porque ya se transfirió o se vendió), se rechaza entera y devuelve los faltantes.
-  - Si alcanza, genera un movimiento `ajuste` de salida desde el destino por cada renglón, con `ref_id` = id de la compra.
+  - Si alcanza, genera un movimiento `compra` de salida (con origen en el destino y sin destino) por cada renglón, con `ref_id` = id de la compra. No se usa `ajuste`, porque el cierre de eventos ya usa `ajuste` con `ref_id` = id del evento y los dos se mezclarían.
   - No restaura el costo anterior de la variante: lo corrige el próximo ingreso, y la pantalla lo avisa.
 - **Proveedor:** no se borra, se desactiva. Nombre duplicado rechazado.
 - **Ingreso suelto de Catálogo:** queda como está (`carga_inicial`, sin proveedor), para correcciones rápidas.
@@ -73,7 +73,7 @@ Editar una compra guardada (se anula y se carga de nuevo), adjuntar el PDF del c
   - El alta crea cabecera, renglones y movimientos, sube el stock y actualiza el costo.
   - Rechaza variantes repetidas, proveedores inactivos y destinos de tipo evento.
   - El mismo `client_uuid` dos veces deja una sola compra.
-  - La anulación genera los ajustes y `verificarStock()` queda limpio.
+  - La anulación genera los movimientos de salida y `verificarStock()` queda limpio.
   - Si el stock ya se transfirió, la anulación se rechaza con los faltantes; una compra anulada no se anula de nuevo.
 - `sincronizacion.test.ts`: la venta copia el costo vigente, y un cambio de costo posterior no la altera.
 - `reportes.test.ts`: el margen sale bien y las unidades sin costo quedan aparte.
