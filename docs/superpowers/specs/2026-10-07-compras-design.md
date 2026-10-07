@@ -8,7 +8,7 @@ Que la mercadería nueva entre al negocio con proveedor, comprobante y costo, y 
 
 ## Decisiones
 
-- **Costo:** el de la última compra. Cada compra pisa `variantes.costo` con el costo del renglón.
+- **Costo:** el de la compra con fecha de comprobante más reciente; una compra con fecha anterior a otra ya cargada no pisa el costo. Con la misma fecha, gana la última cargada.
 - **Sin cuenta corriente:** no hay pagos, saldos ni vencimientos. Se puede agregar después sin tocar este diseño.
 - **Variantes:** solo se compran variantes que ya existen en Catálogo. Si falta una, se da de alta en Catálogo primero.
 - **Destino:** depósito o showroom, elegido en cada compra. Nunca un evento: para eso están las transferencias.
@@ -53,7 +53,7 @@ En la barra lateral, grupo Stock: **Compras** y **Proveedores**.
 - **`/panel/compras`:** lista con fecha, proveedor, comprobante, destino, unidades, total a costo y estado (anulada en gris). Filtros por proveedor y fechas, paginación y exportar.
 - **`/panel/compras/nueva`:**
   1. Cabecera: proveedor (solo activos), destino, fecha (hoy por defecto) y comprobante.
-  2. Renglones: buscador por SKU o nombre que agrega filas con producto, talle, color, cantidad y costo. El costo arranca con el último conocido. Si el costo nuevo difiere más de 20% del anterior, aparece el aviso "antes $X", que no bloquea.
+  2. Renglones: buscador por SKU o nombre que agrega filas con producto, talle, color, cantidad y costo. El costo arranca con el último conocido (vacío si la variante no tiene), es obligatorio en cada renglón y $0 pide confirmación. Si el costo nuevo difiere más de 20% del anterior, aparece el aviso "antes $X", que no bloquea.
   3. Link "Dar de alta en Catálogo" que se abre en otra pestaña.
   4. Pie: total de unidades, total a costo y botón "Guardar compra".
 - **`/panel/compras/[id]`:** cabecera, renglones, movimientos generados y quién la cargó. Botón "Anular" con nota obligatoria. Si no se puede anular, explica qué falta.

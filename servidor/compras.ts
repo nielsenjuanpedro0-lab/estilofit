@@ -6,7 +6,7 @@ import { leerListado, parametro, POR_PAGINA, type ParametrosDeListado } from "@/
 import type { Faltante } from "@/servidor/transferencias";
 
 // Mercadería que entra de un proveedor. Todo en una transacción: cabecera, renglones, movimientos
-// y el costo nuevo de cada variante. El costo es el de la última compra.
+// y el costo nuevo de cada variante. El costo es el de la compra con fecha más reciente.
 
 // El día de hoy en Argentina, como "2026-10-07": una compra no puede tener fecha futura.
 export function hoyArgentino() {
@@ -85,7 +85,23 @@ export async function registrarCompra(d: DatosDeCompra): Promise<ResultadoCompra
         nota: d.comprobante ? `${proveedor.nombre} · ${d.comprobante}` : proveedor.nombre,
       })),
     );
-    for (const i of d.items) await tx.update(variantes).set({ costo: i.costoUnitario }).where(eq(variantes.id, i.varianteId));
+    // El costo vigente es el de la compra con fecha de comprobante más reciente. Si se carga tarde una
+    // compra vieja, no tiene que pisar el costo de una posterior; con la misma fecha o más nueva, sí
+    // (desempata el orden de carga). Las anuladas no cuentan.
+    for (const i of d.items) {
+      await tx
+        .update(variantes)
+        .set({ costo: i.costoUnitario })
+        .where(
+          and(
+            eq(variantes.id, i.varianteId),
+            sql`not exists (
+              select 1 from compra_items ci join compras c on c.id = ci.compra_id
+              where ci.variante_id = ${i.varianteId} and not c.anulada and c.id <> ${nueva.id} and c.fecha > ${d.fecha}
+            )`,
+          ),
+        );
+    }
     return { ok: true, compraId: nueva.id, repetida: false };
   });
 }

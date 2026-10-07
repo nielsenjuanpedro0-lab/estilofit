@@ -85,6 +85,29 @@ describe("registrar compras", () => {
     expect(await verificarStock()).toEqual([]);
   });
 
+  it("el costo es el de la compra con fecha más reciente: una compra con fecha anterior no lo pisa", async () => {
+    const base = await compraDePrueba();
+    const [a] = base.items;
+    if (!a) throw new Error("Datos incompletos");
+    const costoVigente = async () => Number((await e.b.consultarUno<{ costo: string }>("select costo from variantes where id = $1", [a.varianteId])).costo);
+    const compraDe = async (fecha: string, costoUnitario: number) =>
+      compraDePrueba({ fecha, items: [{ varianteId: a.varianteId, cantidad: 1, costoUnitario }] });
+
+    const hoy = await registrarCompra(await compraDe(hoyArgentino(), 5000));
+    expect(hoy.ok).toBe(true);
+    expect(await costoVigente()).toBe(5000);
+
+    // Se carga tarde una compra vieja: el costo sigue siendo el de la más reciente.
+    const vieja = await registrarCompra(await compraDe("2026-09-01", 3000));
+    expect(vieja.ok).toBe(true);
+    expect(await costoVigente()).toBe(5000);
+
+    // Misma fecha que la más reciente: gana la última cargada.
+    const otraHoy = await registrarCompra(await compraDe(hoyArgentino(), 6000));
+    expect(otraHoy.ok).toBe(true);
+    expect(await costoVigente()).toBe(6000);
+  });
+
   it("el mismo client_uuid dos veces deja una sola compra", async () => {
     const datos = await compraDePrueba();
     const primera = await registrarCompra(datos);

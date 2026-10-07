@@ -9,7 +9,8 @@ import { Aviso, Boton, Campo, Selector } from "@/componentes/primitivos";
 
 export type VarianteParaCompra = { varianteId: number; producto: string; marca: string; talle: string; color: string; sku: string; costo: number | null };
 type Opcion = { id: number; nombre: string };
-type Renglon = { varianteId: number; cantidad: number; costo: number };
+// costo null = todavía sin completar: el costo es obligatorio en cada renglón.
+type Renglon = { varianteId: number; cantidad: number; costo: number | null };
 
 // Más de 20% de diferencia con el último costo suele ser un error de tipeo: se avisa, no se bloquea.
 const DIFERENCIA_PARA_AVISAR = 0.2;
@@ -47,10 +48,12 @@ export function FormularioDeCompra({
     ? variantes.filter((v) => !elegidas.has(v.varianteId) && `${v.sku} ${v.producto} ${v.marca} ${v.talle} ${v.color}`.toLowerCase().includes(buscado)).slice(0, 8)
     : [];
   const unidades = renglones.reduce((s, r) => s + r.cantidad, 0);
-  const total = renglones.reduce((s, r) => s + Math.round(r.costo * 100) * r.cantidad, 0) / 100;
+  const total = renglones.reduce((s, r) => s + Math.round((r.costo ?? 0) * 100) * r.cantidad, 0) / 100;
+  const faltaCosto = renglones.some((r) => r.costo === null);
+  const faltaCantidad = renglones.some((r) => r.cantidad < 1);
 
   function agregar(v: VarianteParaCompra) {
-    setRenglones((previos) => [...previos, { varianteId: v.varianteId, cantidad: 1, costo: v.costo ?? 0 }]);
+    setRenglones((previos) => [...previos, { varianteId: v.varianteId, cantidad: 1, costo: v.costo }]);
     setTexto("");
     setError(null);
   }
@@ -61,6 +64,7 @@ export function FormularioDeCompra({
   }
 
   function guardar() {
+    if (renglones.some((r) => r.costo === 0) && !window.confirm("Hay renglones con costo $0. ¿Seguro? Ese costo queda en las ventas que vengan.")) return;
     startTransition(async () => {
       const r = await registrarCompraAccion({
         clientUuid,
@@ -69,7 +73,7 @@ export function FormularioDeCompra({
         fecha,
         comprobante,
         nota,
-        items: renglones.map((x) => ({ varianteId: x.varianteId, cantidad: x.cantidad, costoUnitario: x.costo })),
+        items: renglones.map((x) => ({ varianteId: x.varianteId, cantidad: x.cantidad, costoUnitario: x.costo ?? 0 })),
       });
       if (r.ok) router.push(`/panel/compras/${r.compraId}`);
       else setError(r.error);
@@ -152,7 +156,7 @@ export function FormularioDeCompra({
               {renglones.map((r) => {
                 const v = porId.get(r.varianteId);
                 const anterior = v?.costo ?? null;
-                const avisar = anterior !== null && anterior > 0 && Math.abs(r.costo - anterior) / anterior > DIFERENCIA_PARA_AVISAR;
+                const avisar = r.costo !== null && anterior !== null && anterior > 0 && Math.abs(r.costo - anterior) / anterior > DIFERENCIA_PARA_AVISAR;
                 return (
                   <tr key={r.varianteId}>
                     <td>
@@ -178,14 +182,14 @@ export function FormularioDeCompra({
                         inputMode="decimal"
                         min={0}
                         step="0.01"
-                        value={r.costo}
-                        onChange={(e) => cambiar(r.varianteId, { costo: Math.max(0, Number(e.target.value) || 0) })}
+                        value={r.costo ?? ""}
+                        onChange={(e) => cambiar(r.varianteId, { costo: e.target.value === "" ? null : Math.max(0, Number(e.target.value) || 0) })}
                         className={`min-h-11 w-32 rounded-lg border-2 px-2 text-right tabular-nums ${avisar ? "border-amber-600 bg-amber-50" : "border-black"}`}
                         aria-label={`Costo de ${v?.producto} ${v?.talle}`}
                       />
                       {avisar && <p className="mt-1 text-xs font-bold text-amber-800">antes {pesos(anterior)}</p>}
                     </td>
-                    <td className="numero font-bold">{pesos(r.costo * r.cantidad)}</td>
+                    <td className="numero font-bold">{r.costo === null ? "—" : pesos((Math.round(r.costo * 100) * r.cantidad) / 100)}</td>
                     <td className="text-right">
                       <Boton variante="secundario" className="min-h-11 text-sm" onClick={() => setRenglones((p) => p.filter((x) => x.varianteId !== r.varianteId))}>
                         Quitar
@@ -203,10 +207,15 @@ export function FormularioDeCompra({
         <p className="text-lg font-bold">
           {renglones.length} variantes · {unidades} unidades · {pesos(total)}
         </p>
-        <Boton className="ml-auto" disabled={renglones.length === 0 || proveedorId === 0 || guardando} onClick={guardar}>
+        <Boton className="ml-auto" disabled={renglones.length === 0 || proveedorId === 0 || faltaCosto || faltaCantidad || guardando} onClick={guardar}>
           {guardando ? "Guardando…" : "Guardar compra"}
         </Boton>
       </div>
+      {(faltaCosto || faltaCantidad) && (
+        <p className="text-sm font-bold text-amber-800">
+          {faltaCosto ? "Completá el costo de todos los renglones" : "La cantidad de cada renglón tiene que ser de 1 o más"}
+        </p>
+      )}
       {error && <Aviso tono="error">{error}</Aviso>}
     </div>
   );
