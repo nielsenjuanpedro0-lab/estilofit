@@ -36,8 +36,8 @@ afterEach(async () => {
 });
 
 async function compraValida() {
-  expect(await crearProveedorAccion(null, formulario({ nombre: "Salomon Argentina", cuit: "", telefono: "", email: "", nota: "" }))).toMatchObject({ exito: expect.any(String) });
-  const { id } = await e.b.consultarUno<{ id: number }>("select id from proveedores where nombre = 'Salomon Argentina'");
+  expect(await crearProveedorAccion(null, formulario({ nombre: "Andes Outdoor", cuit: "", telefono: "", email: "", nota: "" }))).toMatchObject({ exito: expect.any(String) });
+  const { id } = await e.b.consultarUno<{ id: number }>("select id from proveedores where nombre = 'Andes Outdoor'");
   const [a] = e.llevadas;
   if (!a) throw new Error("Escenario incompleto");
   return { clientUuid: randomUUID(), proveedorId: id, ubicacionId: e.deposito.id, fecha: hoyArgentino(), comprobante: "R-1", nota: "", items: [{ varianteId: a.id, cantidad: 4, costoUnitario: 1500 }] };
@@ -47,8 +47,8 @@ describe("acciones de compras", () => {
   it("el encargado da de alta un proveedor, carga una compra y la anula; todo queda en auditoría", async () => {
     expect(await crearProveedorAccion(null, formulario({ nombre: " ", cuit: "", telefono: "", email: "", nota: "" }))).toEqual({ error: "Poné el nombre del proveedor" });
     const datos = await compraValida();
-    expect(await crearProveedorAccion(null, formulario({ nombre: "salomon argentina", cuit: "", telefono: "", email: "", nota: "" }))).toEqual({
-      error: "Ya hay un proveedor llamado salomon argentina",
+    expect(await crearProveedorAccion(null, formulario({ nombre: "andes outdoor", cuit: "", telefono: "", email: "", nota: "" }))).toEqual({
+      error: "Ya hay un proveedor llamado andes outdoor",
     });
 
     const r = await registrarCompraAccion(datos);
@@ -60,9 +60,9 @@ describe("acciones de compras", () => {
 
     const areas = await e.b.consultar<{ detalle: string }>("select detalle from auditoria where accion = 'Compras' order by id");
     expect(areas.map((a) => a.detalle)).toEqual([
-      expect.stringMatching(/^Creó el proveedor Salomon Argentina/),
-      expect.stringMatching(/^Cargó la compra #\d+ de Salomon Argentina: 4 unidades/),
-      expect.stringMatching(/^Anuló la compra #\d+ de Salomon Argentina: Remito duplicado/),
+      expect.stringMatching(/^Creó el proveedor Andes Outdoor/),
+      expect.stringMatching(/^Cargó la compra #\d+ de Andes Outdoor: 4 unidades/),
+      expect.stringMatching(/^Anuló la compra #\d+ de Andes Outdoor: Remito duplicado/),
     ]);
   });
 

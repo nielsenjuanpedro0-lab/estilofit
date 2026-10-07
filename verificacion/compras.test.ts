@@ -105,7 +105,7 @@ describe("registrar compras", () => {
     expect(await registrarCompra({ ...datos, fecha: "2099-01-01" })).toEqual({ ok: false, motivo: expect.stringMatching(/futura/) });
     await cambiarProveedorActivo(datos.proveedorId, false);
     expect(await registrarCompra(datos)).toEqual({ ok: false, motivo: expect.stringMatching(/desactivado/) });
-    const { n } = await e.b.consultarUno<{ n: number }>("select count(*)::int as n from compras");
+    const { n } = await e.b.consultarUno<{ n: number }>("select count(*)::int as n from compras where proveedor_id = $1", [datos.proveedorId]);
     expect(n).toBe(0);
   });
 });
