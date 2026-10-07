@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { prepararEscenario } from "@/verificacion/escenario";
+import { randomUUID } from "node:crypto";
+import { anularCompra, hoyArgentino, registrarCompra, type DatosDeCompra } from "@/servidor/compras";
+import { verificarStock } from "@/servidor/libro-mayor";
+import { cambiarProveedorActivo, crearProveedor, listarProveedores, loMasCompradoA } from "@/servidor/proveedores";
+import { transferir } from "@/servidor/transferencias";
 
 type Escenario = Awaited<ReturnType<typeof prepararEscenario>>;
 let e: Escenario;
@@ -25,5 +30,146 @@ describe("esquema de compras", () => {
       "select exists (select 1 from information_schema.columns where table_name = 'venta_items' and column_name = 'costo_unitario') as existe",
     );
     expect(existe).toBe(true);
+  });
+});
+
+async function stockEn(ubicacionId: number, varianteId: number) {
+  const filas = await e.b.consultar<{ cantidad: number }>("select cantidad from stock_actual where ubicacion_id = $1 and variante_id = $2", [
+    ubicacionId,
+    varianteId,
+  ]);
+  return filas[0]?.cantidad ?? 0;
+}
+
+async function compraDePrueba(cambios: Partial<DatosDeCompra> = {}): Promise<DatosDeCompra> {
+  const proveedor = await crearProveedor({ nombre: `Proveedor ${randomUUID().slice(0, 8)}`, cuit: null, telefono: null, email: null, nota: null });
+  const [a, b] = e.llevadas;
+  if (!a || !b) throw new Error("Escenario incompleto");
+  return {
+    clientUuid: randomUUID(),
+    proveedorId: proveedor.id,
+    ubicacionId: e.deposito.id,
+    fecha: hoyArgentino(),
+    comprobante: "Remito 0001-00004567",
+    nota: null,
+    items: [
+      { varianteId: a.id, cantidad: 10, costoUnitario: 12345.5 },
+      { varianteId: b.id, cantidad: 3, costoUnitario: 2000 },
+    ],
+    usuarioId: null,
+    ...cambios,
+  };
+}
+
+describe("registrar compras", () => {
+  it("crea cabecera, renglones y un movimiento por renglón, sube el stock y pisa el costo", async () => {
+    const datos = await compraDePrueba();
+    const [a, b] = datos.items;
+    if (!a || !b) throw new Error("Datos incompletos");
+    const antes = await stockEn(e.deposito.id, a.varianteId);
+
+    const r = await registrarCompra(datos);
+    if (!r.ok) throw new Error(r.motivo);
+    expect(r.repetida).toBe(false);
+
+    expect(await stockEn(e.deposito.id, a.varianteId)).toBe(antes + 10);
+    const movs = await e.b.consultar<{ variante_id: number; cantidad: number; destino: number; origen: number | null }>(
+      "select variante_id, cantidad, ubicacion_destino_id as destino, ubicacion_origen_id as origen from movimientos where tipo = 'compra' and ref_id = $1 order by variante_id",
+      [r.compraId],
+    );
+    expect(movs).toHaveLength(2);
+    expect(movs.every((m) => m.destino === e.deposito.id && m.origen === null)).toBe(true);
+    const costo = await e.b.consultarUno<{ costo: string }>("select costo from variantes where id = $1", [a.varianteId]);
+    expect(Number(costo.costo)).toBe(12345.5);
+    expect(await verificarStock()).toEqual([]);
+  });
+
+  it("el mismo client_uuid dos veces deja una sola compra", async () => {
+    const datos = await compraDePrueba();
+    const primera = await registrarCompra(datos);
+    const segunda = await registrarCompra(datos);
+    if (!primera.ok || !segunda.ok) throw new Error("Tenían que entrar las dos");
+    expect(segunda).toEqual({ ok: true, compraId: primera.compraId, repetida: true });
+    const { n } = await e.b.consultarUno<{ n: number }>("select count(*)::int as n from movimientos where tipo = 'compra' and ref_id = $1", [primera.compraId]);
+    expect(n).toBe(2);
+  });
+
+  it("rechaza variantes repetidas, proveedor inactivo, destino evento, sin renglones y fecha futura", async () => {
+    const datos = await compraDePrueba();
+    const [a] = datos.items;
+    if (!a) throw new Error("Datos incompletos");
+    expect(await registrarCompra({ ...datos, items: [a, a] })).toEqual({ ok: false, motivo: expect.stringMatching(/sumá la cantidad en un solo renglón/) });
+    expect(await registrarCompra({ ...datos, items: [] })).toEqual({ ok: false, motivo: expect.stringMatching(/al menos un producto/) });
+    expect(await registrarCompra({ ...datos, ubicacionId: e.evento.ubicacionId })).toEqual({ ok: false, motivo: expect.stringMatching(/depósito o showroom/) });
+    expect(await registrarCompra({ ...datos, fecha: "2099-01-01" })).toEqual({ ok: false, motivo: expect.stringMatching(/futura/) });
+    await cambiarProveedorActivo(datos.proveedorId, false);
+    expect(await registrarCompra(datos)).toEqual({ ok: false, motivo: expect.stringMatching(/desactivado/) });
+    const { n } = await e.b.consultarUno<{ n: number }>("select count(*)::int as n from compras");
+    expect(n).toBe(0);
+  });
+});
+
+describe("anular compras", () => {
+  it("saca lo que entró con movimientos de salida y no se anula dos veces", async () => {
+    const datos = await compraDePrueba();
+    const [a] = datos.items;
+    if (!a) throw new Error("Datos incompletos");
+    const antes = await stockEn(e.deposito.id, a.varianteId);
+    const r = await registrarCompra(datos);
+    if (!r.ok) throw new Error(r.motivo);
+
+    expect(await anularCompra(r.compraId, null, "Remito cargado dos veces")).toEqual({ ok: true });
+    expect(await stockEn(e.deposito.id, a.varianteId)).toBe(antes);
+    const salidas = await e.b.consultar("select 1 from movimientos where tipo = 'compra' and ref_id = $1 and ubicacion_origen_id = $2", [r.compraId, e.deposito.id]);
+    expect(salidas).toHaveLength(2);
+    expect(await verificarStock()).toEqual([]);
+
+    expect(await anularCompra(r.compraId, null, "otra vez")).toEqual({ ok: false, motivo: "La compra ya está anulada", faltantes: [] });
+  });
+
+  it("si lo comprado ya se movió, no anula nada y dice qué falta", async () => {
+    const proveedor = await crearProveedor({ nombre: "Proveedor showroom", cuit: null, telefono: null, email: null, nota: null });
+    const { id: showroom } = await e.b.consultarUno<{ id: number }>("select id from ubicaciones where nombre = 'Showroom Tandil'");
+    const [a] = e.llevadas;
+    if (!a) throw new Error("Escenario incompleto");
+    const enShowroom = await stockEn(showroom, a.id);
+    const r = await registrarCompra({
+      clientUuid: randomUUID(),
+      proveedorId: proveedor.id,
+      ubicacionId: showroom,
+      fecha: hoyArgentino(),
+      comprobante: null,
+      nota: null,
+      items: [{ varianteId: a.id, cantidad: 5, costoUnitario: 100 }],
+      usuarioId: null,
+    });
+    if (!r.ok) throw new Error(r.motivo);
+    const llevar = await transferir({ origenId: showroom, destinoId: e.deposito.id, items: [{ varianteId: a.id, cantidad: enShowroom + 5 }] });
+    expect(llevar.ok).toBe(true);
+
+    expect(await anularCompra(r.compraId, null, "error")).toEqual({
+      ok: false,
+      motivo: expect.stringMatching(/ya no está/),
+      faltantes: [{ varianteId: a.id, pedido: 5, disponible: 0 }],
+    });
+    const { anulada } = await e.b.consultarUno<{ anulada: boolean }>("select anulada from compras where id = $1", [r.compraId]);
+    expect(anulada).toBe(false);
+  });
+});
+
+describe("proveedores con compras anuladas", () => {
+  it("el listado y lo más comprado ignoran la compra anulada", async () => {
+    const base = await compraDePrueba();
+    const [a, b] = base.items;
+    if (!a || !b) throw new Error("Datos incompletos");
+    const vieja = await registrarCompra({ ...base, fecha: "2026-09-01", items: [{ ...a, cantidad: 4 }] });
+    const nueva = await registrarCompra({ ...base, clientUuid: randomUUID(), items: [{ ...b, cantidad: 7 }] });
+    if (!vieja.ok || !nueva.ok) throw new Error("Tenían que entrar las dos");
+    expect(await anularCompra(nueva.compraId, null, "error de carga")).toEqual({ ok: true });
+
+    const fila = (await listarProveedores()).find((p) => p.id === base.proveedorId);
+    expect(fila).toMatchObject({ compras: 1, ultimaCompra: "2026-09-01" });
+    const comprado = await loMasCompradoA(base.proveedorId);
+    expect(comprado.map((c) => c.unidades)).toEqual([4]);
   });
 });
