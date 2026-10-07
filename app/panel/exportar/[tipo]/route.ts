@@ -2,6 +2,7 @@ import { puede, type Permiso } from "@/contrato/permisos";
 import { MEDIO_DE_PAGO } from "@/componentes/formato";
 import { usuarioActual } from "@/servidor/acceso";
 import { listarAuditoria } from "@/servidor/auditoria";
+import { listarCompras } from "@/servidor/compras";
 import { listarMovimientos } from "@/servidor/movimientos";
 import { matrizDeStock } from "@/servidor/stock";
 import { listarVentas } from "@/servidor/ventas";
@@ -32,7 +33,7 @@ function csv(encabezados: string[], filas: Celda[][], nombre: string) {
   });
 }
 
-const PERMISO: Record<string, Permiso> = { ventas: "ver", movimientos: "ver", stock: "ver", auditoria: "administrar" };
+const PERMISO: Record<string, Permiso> = { ventas: "ver", movimientos: "ver", stock: "ver", compras: "ver", auditoria: "administrar" };
 
 export async function GET(request: Request, { params }: { params: Promise<{ tipo: string }> }) {
   const { tipo } = await params;
@@ -88,6 +89,15 @@ export async function GET(request: Request, { params }: { params: Promise<{ tipo
       ["Producto", "Marca", "Categoría", "Talle", "Color", "SKU", "Precio", ...columnas.map((c) => c.nombre), "Total"],
       filas.map((f) => [f.producto, f.marca, f.categoria, f.talle, f.color, f.sku, f.precio, ...f.porUbicacion, f.total]),
       "stock",
+    );
+  }
+
+  if (tipo === "compras") {
+    const { filas } = await listarCompras(parametros, true);
+    return csv(
+      ["Número", "Fecha", "Proveedor", "Comprobante", "Destino", "Unidades", "Total a costo", "Anulada"],
+      filas.map((c) => [c.id, c.fecha, c.proveedor, c.comprobante, c.destino, c.unidades, c.total, c.anulada ? "Sí" : "No"]),
+      "compras",
     );
   }
 

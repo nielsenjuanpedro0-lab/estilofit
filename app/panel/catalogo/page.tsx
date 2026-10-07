@@ -67,7 +67,7 @@ export default async function Catalogo({ searchParams }: { searchParams: Promise
 
       {opera && (
         <div className="grid gap-6 xl:grid-cols-2">
-          <Tarjeta titulo="Ingresar mercadería" descripcion="Para lo que entra al negocio: compras y reposiciones.">
+          <Tarjeta titulo="Ingresar mercadería" descripcion="Correcciones rápidas sin proveedor. Lo que entra de un proveedor va por Compras, con costo.">
             <Formulario accion={ingresarMercaderiaAccion} className="grid gap-3 sm:grid-cols-3 sm:items-end">
               <Campo etiqueta="SKU" name="sku" inputMode="numeric" required />
               <Campo etiqueta="Cantidad" name="cantidad" type="number" inputMode="numeric" min={1} required />
