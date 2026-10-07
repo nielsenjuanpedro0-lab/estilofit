@@ -8,6 +8,8 @@ import { abrirEvento, crearEvento } from "@/servidor/eventos";
 import { registrarLote } from "@/servidor/sincronizacion";
 import { transferir } from "@/servidor/transferencias";
 import { crearUsuario } from "@/servidor/usuarios";
+import { crearProveedor } from "@/servidor/proveedores";
+import { registrarCompra } from "@/servidor/compras";
 
 // La semilla pasa por las mismas funciones que usa la app: catálogo, ingreso, transferencias,
 // sincronización y cierre. Si algo de eso se rompe, la semilla se rompe con eso.
@@ -249,4 +251,21 @@ export async function sembrar() {
   });
   if (!transferenciaSierra.ok) throw new Error("La semilla pidió más stock del que hay en el depósito");
   await abrirEvento(sierra.id);
+
+  // --- Reposición después del Tandil: dos proveedores y tres compras al depósito. ---
+  // UUID armados con el generador fijo, como las ventas: la demo da lo mismo en cada corrida.
+  const salomon = await crearProveedor({ nombre: "Salomon Argentina", cuit: "30-71234567-8", telefono: "011 4555-0101", email: "pedidos@salomon.com.ar", nota: null });
+  const nutricion = await crearProveedor({ nombre: "Distribuidora NutriSport", cuit: "30-70987654-3", telefono: "0249 442-1100", email: null, nota: "Entrega los martes" });
+  const costoDe = (precio: number, proporcion: number) => Math.round((precio * proporcion) / 100) * 100;
+  const geles = surtido.filter((s) => s.categoria === "Nutrición").slice(0, 3);
+  const zapatillas = surtido.filter((s) => s.categoria === "Zapatillas trail").slice(0, 3);
+  const compras = [
+    { proveedorId: nutricion.id, fecha: "2026-09-20", comprobante: "Factura A 0003-00012876", items: geles.map((s) => ({ varianteId: s.varianteId, cantidad: 60, costoUnitario: costoDe(s.precio, 0.55) })) },
+    { proveedorId: salomon.id, fecha: "2026-09-25", comprobante: "Remito 0001-00004567", items: zapatillas.slice(0, 2).map((s) => ({ varianteId: s.varianteId, cantidad: 4, costoUnitario: costoDe(s.precio, 0.62) })) },
+    { proveedorId: salomon.id, fecha: "2026-10-02", comprobante: "Remito 0001-00004612", items: zapatillas.slice(2, 3).concat(zapatillas.slice(0, 2)).map((s) => ({ varianteId: s.varianteId, cantidad: 2, costoUnitario: costoDe(s.precio, 0.64) })) },
+  ];
+  for (const c of compras) {
+    const r = await registrarCompra({ ...c, clientUuid: uuid(), ubicacionId: deposito.id, nota: null, usuarioId: dueno.id });
+    if (!r.ok) throw new Error(`La semilla no pudo cargar una compra: ${r.motivo}`);
+  }
 }

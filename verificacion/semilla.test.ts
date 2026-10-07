@@ -37,6 +37,11 @@ describe("semilla", () => {
     expect(conteo).toEqual({ productos: 19, variantes: 60, fijas: 3 });
     expect(await b.consultar("select * from verificar_stock_actual()")).toEqual([]);
 
+    const compras = await b.consultarUno<{ proveedores: number; compras: number; movimientos: number }>(
+      "select (select count(*)::int from proveedores) as proveedores, (select count(*)::int from compras) as compras, (select count(*)::int from movimientos where tipo = 'compra') as movimientos",
+    );
+    expect(compras).toEqual({ proveedores: 2, compras: 3, movimientos: 8 });
+
     const skus = await b.consultar<{ sku: string }>("select sku from variantes");
     for (const { sku } of skus) expect(sku).toMatch(/^\d{3,4}$/);
   });
