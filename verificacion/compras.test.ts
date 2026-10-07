@@ -190,8 +190,16 @@ describe("listado y detalle", () => {
     expect((await listarCompras({ estado: "anuladas" })).filas.map((f) => f.id)).toEqual([otra.compraId]);
     expect((await listarCompras({ q: "0002-000" })).filas.map((f) => f.id)).toEqual([otra.compraId]);
 
+    // Una búsqueda numérica más larga que int4 no rompe la página (issue: desborda a `eq(compras.id, Number(q))`)
+    await expect(listarCompras({ q: "123456789012" })).resolves.toMatchObject({ total: 0, filas: [] });
+
+    // Fechas imposibles no rompen con error Postgres (issue: regex acepta 2026-02-31)
+    await expect(listarCompras({ desde: "2026-02-31" })).resolves.not.toThrow();
+    await expect(listarCompras({ hasta: "2026-02-31" })).resolves.not.toThrow();
+
     const detalle = await detalleDeCompra(r.compraId);
     expect(detalle?.renglones).toHaveLength(2);
+    expect(detalle?.movimientos).toHaveLength(2);
     expect(detalle?.movimientos.every((m) => m.entra)).toBe(true);
     expect(await detalleDeCompra(999_999)).toBeNull();
   });

@@ -133,21 +133,29 @@ export async function anularCompra(compraId: number, usuarioId: number | null, m
 const cargo = alias(usuarios, "cargo");
 const anulo = alias(usuarios, "anulo");
 
+// Validar que una fecha (YYYY-MM-DD) sea real, no solo que cumpla el formato.
+function esUnaFechaValida(s: string): boolean {
+  const d = new Date(`${s}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+}
+
 function filtrosDeCompras(parametros: ParametrosDeListado) {
   const condiciones: SQL[] = [];
   const proveedor = Number(parametro(parametros, "proveedor"));
   if (Number.isInteger(proveedor) && proveedor > 0) condiciones.push(eq(compras.proveedorId, proveedor));
-  const dia = /^\d{4}-\d{2}-\d{2}$/;
   const desde = parametro(parametros, "desde");
-  if (desde && dia.test(desde)) condiciones.push(gte(compras.fecha, desde));
+  if (desde && esUnaFechaValida(desde)) condiciones.push(gte(compras.fecha, desde));
   const hasta = parametro(parametros, "hasta");
-  if (hasta && dia.test(hasta)) condiciones.push(lte(compras.fecha, hasta));
+  if (hasta && esUnaFechaValida(hasta)) condiciones.push(lte(compras.fecha, hasta));
   const estado = parametro(parametros, "estado");
   if (estado === "vigentes") condiciones.push(eq(compras.anulada, false));
   if (estado === "anuladas") condiciones.push(eq(compras.anulada, true));
   const q = parametro(parametros, "q")?.trim();
   if (q) {
-    const coincide = /^\d+$/.test(q) ? or(eq(compras.id, Number(q)), ilike(compras.comprobante, `%${q}%`)) : ilike(compras.comprobante, `%${q}%`);
+    // Búsqueda numérica: solo si es un número dentro del rango seguro de int4 (1 a 2147483647),
+    // para no chocar con "value out of range for type integer" en Postgres.
+    const esNumeroSeguro = /^\d+$/.test(q) && Number(q) >= 1 && Number(q) <= 2147483647;
+    const coincide = esNumeroSeguro ? or(eq(compras.id, Number(q)), ilike(compras.comprobante, `%${q}%`)) : ilike(compras.comprobante, `%${q}%`);
     if (coincide) condiciones.push(coincide);
   }
   return and(...condiciones);
